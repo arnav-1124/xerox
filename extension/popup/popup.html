@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xerox Password Manager</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <span class="logo-icon">🔐</span>
+        <span class="brand-title">Xerox</span>
+      </div>
+      <div id="status-badge" class="status-badge locked">
+        <span id="status-text">Locked</span>
+      </div>
+    </header>
+
+    <!-- Content Area -->
+    <main class="popup-main">
+      <!-- Locked State Form -->
+      <div id="unlock-section" class="view-section">
+        <p class="section-desc">Enter your Master Password to unlock your local Xerox vault.</p>
+        <div class="input-group">
+          <input type="password" id="master-password-input" placeholder="Master Password" autofocus />
+          <button id="unlock-btn" class="btn btn-primary">Unlock Vault</button>
+        </div>
+        <p id="error-msg" class="error-msg"></p>
+      </div>
+
+      <!-- Unlocked State View -->
+      <div id="unlocked-section" class="view-section hidden">
+        <div class="tab-domain-box">
+          <span class="domain-label">Current Domain:</span>
+          <span id="current-domain" class="domain-value">loading...</span>
+        </div>
+
+        <div id="credentials-container" class="credentials-list">
+          <!-- Matching item templates inserted here dynamically -->
+        </div>
+
+        <div id="no-matches" class="no-matches hidden">
+          <p>No matching credentials found for this domain.</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer Actions -->
+    <footer class="popup-footer">
+      <button id="open-vault-btn" class="btn btn-ghost">Open Xerox Web Vault</button>
+      <button id="lock-btn" class="btn btn-ghost danger hidden">Lock Vault</button>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
