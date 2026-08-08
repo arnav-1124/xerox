@@ -63,7 +63,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8 text-foreground">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 sm:space-y-8 text-foreground">
       {/* Page Title */}
       <div className="border-b border-border pb-4">
         <h2 className="text-xl font-bold">Settings & Security Architecture</h2>

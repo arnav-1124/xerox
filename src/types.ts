@@ -28,6 +28,15 @@ export interface PasswordEntry {
   createdAt: number;
   updatedAt: number;
   history?: PasswordHistoryItem[];
+  totpSecret?: string; // Base32 TOTP secret key for 2FA codes
+  entryType?: 'login' | 'card' | 'note'; // Item type
+  cardDetails?: {
+    cardNumber?: string;
+    cardholderName?: string;
+    expiryMonth?: string;
+    expiryYear?: string;
+    cvv?: string;
+  };
 }
 
 export interface EncryptedVaultData {
@@ -52,4 +61,15 @@ export interface VaultSettings {
   lastUnlockedTime?: number;
 }
 
-export type ViewMode = 'home' | 'bookmarks' | 'passwords' | 'favorites' | 'categories' | 'settings' | 'extension' | 'security-audit' | 'blog';
+export type ViewMode =
+  | 'home'
+  | 'bookmarks'
+  | 'passwords'
+  | 'favorites'
+  | 'categories'
+  | 'generator'
+  | 'import-export'
+  | 'settings'
+  | 'extension'
+  | 'security-audit'
+  | 'blog';

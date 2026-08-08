@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, KeyRound, Wand2, Eye, EyeOff } from 'lucide-react';
+import { X, KeyRound, Wand2, Eye, EyeOff, ShieldAlert, CreditCard, FileText, Lock } from 'lucide-react';
 import { PasswordEntry, Category } from '../types';
 import { PasswordGeneratorModal } from './PasswordGeneratorModal';
 
@@ -18,34 +18,60 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
   initialEntry,
   categories,
 }) => {
+  const [entryType, setEntryType] = useState<'login' | 'card' | 'note'>('login');
   const [websiteName, setWebsiteName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [totpSecret, setTotpSecret] = useState('');
   const [category, setCategory] = useState(categories[0]?.name || 'Work');
   const [notes, setNotes] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
+
+  // Card fields
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardholderName, setCardholderName] = useState('');
+  const [expiryMonth, setExpiryMonth] = useState('');
+  const [expiryYear, setExpiryYear] = useState('');
+  const [cvv, setCvv] = useState('');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
 
   useEffect(() => {
     if (initialEntry) {
+      setEntryType(initialEntry.entryType || 'login');
       setWebsiteName(initialEntry.websiteName);
       setWebsiteUrl(initialEntry.websiteUrl);
       setUsername(initialEntry.username);
       setPassword(initialEntry.password);
+      setTotpSecret(initialEntry.totpSecret || '');
       setCategory(initialEntry.category);
       setNotes(initialEntry.notes || '');
       setIsFavorite(initialEntry.isFavorite);
+
+      if (initialEntry.cardDetails) {
+        setCardNumber(initialEntry.cardDetails.cardNumber || '');
+        setCardholderName(initialEntry.cardDetails.cardholderName || '');
+        setExpiryMonth(initialEntry.cardDetails.expiryMonth || '');
+        setExpiryYear(initialEntry.cardDetails.expiryYear || '');
+        setCvv(initialEntry.cardDetails.cvv || '');
+      }
     } else {
+      setEntryType('login');
       setWebsiteName('');
       setWebsiteUrl('');
       setUsername('');
       setPassword('');
+      setTotpSecret('');
       setCategory(categories[0]?.name || 'Work');
       setNotes('');
       setIsFavorite(false);
+      setCardNumber('');
+      setCardholderName('');
+      setExpiryMonth('');
+      setExpiryYear('');
+      setCvv('');
     }
   }, [initialEntry, isOpen, categories]);
 
@@ -60,7 +86,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
 
     // Preserve history when updating password
     let updatedHistory = initialEntry?.history || [];
-    if (initialEntry && initialEntry.password !== password) {
+    if (initialEntry && initialEntry.password !== password && password) {
       updatedHistory = [
         {
           id: 'hist-' + Date.now(),
@@ -73,16 +99,25 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
 
     const entry: PasswordEntry = {
       id: initialEntry?.id || 'pwd-' + Date.now(),
-      websiteName: websiteName.trim(),
+      entryType,
+      websiteName: websiteName.trim() || (entryType === 'card' ? 'Payment Card' : 'Secure Note'),
       websiteUrl: formattedUrl,
       username: username.trim(),
       password,
+      totpSecret: totpSecret.trim().toUpperCase(),
       notes: notes.trim(),
       category,
       isFavorite,
       createdAt: initialEntry?.createdAt || Date.now(),
       updatedAt: Date.now(),
       history: updatedHistory,
+      cardDetails: entryType === 'card' ? {
+        cardNumber: cardNumber.trim(),
+        cardholderName: cardholderName.trim(),
+        expiryMonth: expiryMonth.trim(),
+        expiryYear: expiryYear.trim(),
+        cvv: cvv.trim(),
+      } : undefined,
     };
 
     onSave(entry);
@@ -113,73 +148,194 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+            {/* Entry Type Selector */}
+            <div className="flex rounded-lg bg-muted p-1 border border-border">
+              <button
+                type="button"
+                onClick={() => setEntryType('login')}
+                className={`flex-1 py-1.5 px-2 rounded-md font-medium text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  entryType === 'login'
+                    ? 'bg-popover text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryType('card')}
+                className={`flex-1 py-1.5 px-2 rounded-md font-medium text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  entryType === 'card'
+                    ? 'bg-popover text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Card</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryType('note')}
+                className={`flex-1 py-1.5 px-2 rounded-md font-medium text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  entryType === 'note'
+                    ? 'bg-popover text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Note</span>
+              </button>
+            </div>
+
             <div>
-              <label className="block text-foreground font-medium mb-1">Website Title / Service Name</label>
+              <label className="block text-foreground font-medium mb-1">
+                {entryType === 'card' ? 'Card / Bank Identifier' : entryType === 'note' ? 'Note Title' : 'Website / Service Name'}
+              </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. GitHub"
+                placeholder={entryType === 'card' ? 'e.g. Visa Corporate' : entryType === 'note' ? 'e.g. Server SSH Key' : 'e.g. GitHub'}
                 value={websiteName}
                 onChange={(e) => setWebsiteName(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
               />
             </div>
 
-            <div>
-              <label className="block text-foreground font-medium mb-1">Website URL (Required for extension autofill)</label>
-              <input
-                type="text"
-                required
-                placeholder="https://github.com/login"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
-              />
-            </div>
+            {entryType === 'login' && (
+              <>
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Website URL (for extension autofill)</label>
+                  <input
+                    type="text"
+                    placeholder="https://github.com/login"
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-foreground font-medium mb-1">Username / Email</label>
-              <input
-                type="text"
-                required
-                placeholder="user@example.com"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
-              />
-            </div>
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Username / Email</label>
+                  <input
+                    type="text"
+                    placeholder="user@example.com"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
+                  />
+                </div>
+              </>
+            )}
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-foreground font-medium">Password</label>
-                <button
-                  type="button"
-                  onClick={() => setIsGeneratorOpen(true)}
-                  className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1 text-[11px] font-medium"
-                >
-                  <Wand2 className="w-3 h-3" />
-                  <span>Generate</span>
-                </button>
+            {entryType === 'card' && (
+              <div className="space-y-3 p-3 bg-muted/40 rounded-xl border border-border">
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Cardholder Name</label>
+                  <input
+                    type="text"
+                    placeholder="John Doe"
+                    value={cardholderName}
+                    onChange={(e) => setCardholderName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Card Number</label>
+                  <input
+                    type="text"
+                    placeholder="4532 •••• •••• 8901"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground font-mono outline-none focus:border-ring transition-colors"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-foreground font-medium mb-1">Exp Month</label>
+                    <input
+                      type="text"
+                      placeholder="08"
+                      value={expiryMonth}
+                      onChange={(e) => setExpiryMonth(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground font-mono text-center outline-none focus:border-ring transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-foreground font-medium mb-1">Exp Year</label>
+                    <input
+                      type="text"
+                      placeholder="2028"
+                      value={expiryYear}
+                      onChange={(e) => setExpiryYear(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground font-mono text-center outline-none focus:border-ring transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-foreground font-medium mb-1">CVV / CVC</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      placeholder="•••"
+                      value={cvv}
+                      onChange={(e) => setCvv(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground font-mono text-center outline-none focus:border-ring transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
+            )}
 
-              <div className="relative">
+            {entryType !== 'note' && (
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-foreground font-medium">Password / PIN</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsGeneratorOpen(true)}
+                    className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1 text-[11px] font-medium cursor-pointer"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    <span>Generate</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground font-mono outline-none focus:border-ring transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {entryType === 'login' && (
+              <div>
+                <label className="block text-foreground font-medium mb-1 flex items-center justify-between">
+                  <span>2FA Authenticator Secret Key (TOTP)</span>
+                  <span className="text-[10px] text-emerald-500 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                    6-Digit Live OTP Generator
+                  </span>
+                </label>
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 pr-10 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground font-mono outline-none focus:border-ring transition-colors"
+                  type="text"
+                  placeholder="Base32 Secret e.g. JBSWY3DPEHPK3PXP"
+                  value={totpSecret}
+                  onChange={(e) => setTotpSecret(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground font-mono placeholder:text-muted-foreground uppercase outline-none focus:border-ring transition-colors"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

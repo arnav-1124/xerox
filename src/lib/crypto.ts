@@ -303,29 +303,52 @@ export interface PasswordGeneratorOptions {
   excludeSimilar?: boolean;
 }
 
-export function generateSecurePassword(options: PasswordGeneratorOptions): string {
+export function generateSecurePassword(
+  optionsOrLength: PasswordGeneratorOptions | number = 16,
+  includeUppercase = true,
+  includeLowercase = true,
+  includeNumbers = true,
+  includeSymbols = true,
+  excludeSimilar = false
+): string {
+  let opts: PasswordGeneratorOptions;
+
+  if (typeof optionsOrLength === 'number') {
+    opts = {
+      length: optionsOrLength,
+      includeUppercase,
+      includeLowercase,
+      includeNumbers,
+      includeSymbols,
+      excludeSimilar,
+    };
+  } else {
+    opts = optionsOrLength;
+  }
+
   let uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let lowercase = 'abcdefghijklmnopqrstuvwxyz';
   let numbers = '0123456789';
   let symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
 
-  if (options.excludeSimilar) {
+  if (opts.excludeSimilar) {
     uppercase = uppercase.replace(/[IO]/g, '');
     lowercase = lowercase.replace(/[lI10oO]/g, '');
     numbers = numbers.replace(/[01]/g, '');
   }
 
   let charset = '';
-  if (options.includeUppercase) charset += uppercase;
-  if (options.includeLowercase) charset += lowercase;
-  if (options.includeNumbers) charset += numbers;
-  if (options.includeSymbols) charset += symbols;
+  if (opts.includeUppercase) charset += uppercase;
+  if (opts.includeLowercase) charset += lowercase;
+  if (opts.includeNumbers) charset += numbers;
+  if (opts.includeSymbols) charset += symbols;
 
   if (!charset) {
     charset = lowercase + numbers;
   }
 
-  const randomValues = new Uint32Array(options.length);
+  const length = opts.length || 16;
+  const randomValues = new Uint32Array(length);
   if (
     typeof window !== 'undefined' &&
     window.crypto &&
@@ -333,13 +356,13 @@ export function generateSecurePassword(options: PasswordGeneratorOptions): strin
   ) {
     window.crypto.getRandomValues(randomValues);
   } else {
-    for (let i = 0; i < options.length; i++) {
+    for (let i = 0; i < length; i++) {
       randomValues[i] = Math.floor(Math.random() * 4294967296);
     }
   }
 
   let password = '';
-  for (let i = 0; i < options.length; i++) {
+  for (let i = 0; i < length; i++) {
     password += charset[randomValues[i] % charset.length];
   }
 

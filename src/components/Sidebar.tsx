@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, Wand2, Database } from 'lucide-react';
 import { Category, ViewMode } from '../types';
 
 interface SidebarProps {
@@ -12,6 +12,8 @@ interface SidebarProps {
   onOpenCategoryManager: () => void;
   bookmarkCount: number;
   passwordCount: number;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -24,6 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCategoryManager,
   bookmarkCount,
   passwordCount,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -31,6 +35,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'home' as ViewMode, label: 'Home Overview', icon: Home },
     { id: 'bookmarks' as ViewMode, label: 'Bookmarks', icon: Bookmark, badge: bookmarkCount },
     { id: 'passwords' as ViewMode, label: 'Password Vault', icon: KeyRound, badge: isUnlocked ? passwordCount : '🔒' },
+    { id: 'generator' as ViewMode, label: 'Password Studio', icon: Wand2 },
+    { id: 'import-export' as ViewMode, label: 'Import / Export', icon: Database },
     { id: 'security-audit' as ViewMode, label: 'Security Health', icon: ShieldCheck },
     { id: 'blog' as ViewMode, label: 'Feature Guide & Docs', icon: BookOpen },
     { id: 'favorites' as ViewMode, label: 'Favorites', icon: Star },
@@ -39,11 +45,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside
-      className={`${
-        isCollapsed ? 'w-16' : 'w-64'
-      } bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col justify-between h-screen sticky top-0 shrink-0 select-none transition-all duration-300 ease-in-out`}
-    >
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
+        />
+      )}
+
+      <aside
+        className={`fixed md:sticky top-0 left-0 z-50 md:z-auto bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col justify-between h-screen shrink-0 select-none transition-all duration-300 ease-in-out ${
+          isMobileOpen ? 'translate-x-0 w-72 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        } ${isCollapsed ? 'md:w-16' : 'md:w-64'}`}
+      >
       <div className="flex flex-col min-h-0 flex-1">
         {/* Brand Header */}
         <div className="p-3 sm:p-4 border-b border-sidebar-border flex items-center justify-between gap-2">
@@ -84,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => {
                   onSelectView(item.id);
                   onSelectCategory(null);
+                  if (onCloseMobile) onCloseMobile();
                 }}
                 title={isCollapsed ? item.label : undefined}
                 className={`w-full flex items-center ${
@@ -159,6 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onSelectView('bookmarks');
                   }
                   onSelectCategory(cat.name);
+                  if (onCloseMobile) onCloseMobile();
                 }}
                 title={isCollapsed ? cat.name : undefined}
                 className={`w-full flex items-center ${
@@ -190,5 +207,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
     </aside>
-  );
+  </>
+);
 };

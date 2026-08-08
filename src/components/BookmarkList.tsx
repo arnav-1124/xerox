@@ -54,11 +54,11 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
-          <h2 className="text-xl font-bold text-foreground">
+          <h2 className="text-lg sm:text-xl font-bold text-foreground">
             {selectedCategory ? `${selectedCategory} Bookmarks` : 'All Bookmarks'}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">

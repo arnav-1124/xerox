@@ -38,6 +38,8 @@ import { FeatureGuideView } from './components/FeatureGuideView';
 import { ExtensionGuideModal } from './components/ExtensionGuideModal';
 import { SharePasswordModal, ReceiveShareModal } from './components/SharePasswordModal';
 import { LandingHero } from './components/LandingHero';
+import { StandaloneGeneratorView } from './components/StandaloneGeneratorView';
+import { ImportExportView } from './components/ImportExportView';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { Puzzle, Star } from 'lucide-react';
 
@@ -86,6 +88,7 @@ export default function App() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isExtensionGuideOpen, setIsExtensionGuideOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Secure Zero-Knowledge Share States
   const [sharingPassword, setSharingPassword] = useState<PasswordEntry | null>(null);
@@ -489,6 +492,18 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const handleImportEntries = async (importedPasswords: PasswordEntry[], importedBookmarks?: Bookmark[]) => {
+    if (importedPasswords.length > 0) {
+      const merged = [...importedPasswords, ...decryptedPasswords];
+      await saveAndEncryptPasswords(merged);
+    }
+    if (importedBookmarks && importedBookmarks.length > 0) {
+      const mergedBm = [...importedBookmarks, ...bookmarks];
+      setBookmarks(mergedBm);
+      await saveAllBookmarks(mergedBm);
+    }
+  };
+
   const handleResetVault = async () => {
     await resetDatabase();
     setBookmarks([]);
@@ -513,6 +528,8 @@ export default function App() {
         onOpenCategoryManager={() => setIsCategoryModalOpen(true)}
         bookmarkCount={bookmarks.length}
         passwordCount={decryptedPasswords.length}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Container */}
@@ -525,6 +542,7 @@ export default function App() {
           autoLockMinutes={settings.autoLockMinutes}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           onToggleLock={() => {
             if (isUnlocked) lockVault();
             else setIsMasterPasswordModalOpen(true);
@@ -652,6 +670,21 @@ export default function App() {
                 )}
               </div>
             </div>
+          )}
+
+          {currentView === 'generator' && (
+            <StandaloneGeneratorView onCopyText={handleCopyText} />
+          )}
+
+          {currentView === 'import-export' && (
+            <ImportExportView
+              passwords={decryptedPasswords}
+              bookmarks={bookmarks}
+              isUnlocked={isUnlocked}
+              onUnlockVaultClick={() => setIsMasterPasswordModalOpen(true)}
+              onImportEntries={handleImportEntries}
+              addToast={addToast}
+            />
           )}
 
           {currentView === 'security-audit' && (

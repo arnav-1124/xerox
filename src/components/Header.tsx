@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Lock, Unlock, Plus, Puzzle, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { Search, Lock, Unlock, Plus, Puzzle, ShieldCheck, Sun, Moon, Menu } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface HeaderProps {
@@ -14,6 +14,7 @@ interface HeaderProps {
   onOpenExtensionGuide: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenExtensionGuide,
   theme,
   onToggleTheme,
+  onToggleMobileSidebar,
 }) => {
   const getViewTitle = () => {
     switch (currentView) {
@@ -43,6 +45,10 @@ export const Header: React.FC<HeaderProps> = ({
         return 'Categories';
       case 'settings':
         return 'Settings & Security';
+      case 'generator':
+        return 'Password & Passphrase Studio';
+      case 'import-export':
+        return 'Import & Export Vault Backup';
       case 'security-audit':
         return 'Security Health Audit';
       case 'blog':
@@ -55,17 +61,38 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border px-6 py-3.5 flex items-center justify-between gap-4 transition-colors duration-200">
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-bold text-foreground tracking-tight">{getViewTitle()}</h1>
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between gap-3 transition-colors duration-200">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {onToggleMobileSidebar && (
+          <button
+            onClick={onToggleMobileSidebar}
+            className="p-2 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary md:hidden transition-colors cursor-pointer shrink-0"
+            title="Open Navigation Menu"
+            aria-label="Open Navigation Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+
+        <h1 className="text-base sm:text-lg font-bold text-foreground tracking-tight truncate">{getViewTitle()}</h1>
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
           <ShieldCheck className="w-3 h-3" />
           <span>Local Storage Only</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Search trigger / input */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Mobile Search Icon Trigger */}
+        <button
+          onClick={onOpenCommandPalette}
+          className="p-2 rounded-lg bg-secondary text-secondary-foreground border border-border md:hidden hover:bg-accent transition-colors cursor-pointer"
+          title="Search Vault"
+          aria-label="Search Vault"
+        >
+          <Search className="w-4 h-4 text-muted-foreground" />
+        </button>
+
+        {/* Desktop Search trigger / input */}
         <div
           onClick={onOpenCommandPalette}
           className="relative hidden md:flex items-center w-64 px-3 py-1.5 rounded-lg bg-muted/60 border border-border text-muted-foreground hover:border-ring transition-all cursor-pointer group"

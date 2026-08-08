@@ -58,7 +58,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 sm:pt-20 p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="w-full max-w-xl bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden text-popover-foreground flex flex-col max-h-[80vh]">
         {/* Search Bar Input */}
         <div className="p-4 border-b border-border flex items-center gap-3">

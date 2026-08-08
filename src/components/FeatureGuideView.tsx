@@ -23,6 +23,11 @@ import {
   Clock,
   Laptop,
   HelpCircle,
+  Smartphone,
+  CreditCard,
+  Wand2,
+  FileText,
+  Database,
   FileSpreadsheet,
   Layers,
 } from 'lucide-react';
@@ -54,7 +59,7 @@ export const FeatureGuideView: React.FC<FeatureGuideViewProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-16">
+    <div className="max-w-6xl mx-auto space-y-6 sm:space-y-10 p-4 sm:p-6 pb-16">
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-card to-secondary/50 p-8 sm:p-10 shadow-xs">
         <div className="relative z-10 max-w-3xl space-y-4">
@@ -92,6 +97,36 @@ export const FeatureGuideView: React.FC<FeatureGuideViewProps> = ({
               }`}
             >
               <Bookmark className="w-3.5 h-3.5" /> Smart Bookmarks
+            </button>
+            <button
+              onClick={() => scrollToSection('totp')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeSection === 'totp'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent border border-border'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" /> 2FA TOTP Codes
+            </button>
+            <button
+              onClick={() => scrollToSection('cards-notes')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeSection === 'cards-notes'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent border border-border'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" /> Cards & Notes
+            </button>
+            <button
+              onClick={() => scrollToSection('generator')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeSection === 'generator'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent border border-border'
+              }`}
+            >
+              <Wand2 className="w-3.5 h-3.5" /> Password Studio
             </button>
             <button
               onClick={() => scrollToSection('security')}
@@ -368,6 +403,125 @@ export const FeatureGuideView: React.FC<FeatureGuideViewProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Feature 2.5: Integrated 2FA TOTP Authenticator */}
+      <section id="totp" className="space-y-6 scroll-mt-24">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0 font-bold text-lg">
+              2FA
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Integrated 2FA TOTP Authenticator</h2>
+              <p className="text-xs text-muted-foreground">
+                Replace Google Authenticator or Authy with client-side RFC 6238 time-based 6-digit 2FA code generation.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectView('passwords')}
+            className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 self-start md:self-auto cursor-pointer"
+          >
+            <span>View Vault 2FA Codes</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-5 rounded-2xl border border-border bg-card space-y-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-2">
+              <span className="font-bold text-foreground block">🔑 Base32 Secret Key Storage</span>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                Save the secret key provided during 2FA setup (e.g. <code className="text-foreground bg-background px-1 py-0.5 rounded">JBSWY3DPEHPK3PXP</code>) directly inside your encrypted vault entry.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-2">
+              <span className="font-bold text-foreground block">⚡ Live 30-Second Countdown</span>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                A live Web Crypto HMAC-SHA1 engine updates your 6-digit verification code every 30 seconds automatically without sending data to any external server.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-2">
+              <span className="font-bold text-foreground block">📋 1-Click Copy Badge</span>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                Click any 2FA badge directly inside your password list to copy the active verification code to your clipboard instantly.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature 2.6: Payment Cards & Secure Notes */}
+      <section id="cards-notes" className="space-y-6 scroll-mt-24">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center shrink-0 font-bold text-lg">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Payment Cards & Encrypted Notes</h2>
+              <p className="text-xs text-muted-foreground">
+                Store credit cards, banking details, recovery codes, and sensitive text notes with zero-knowledge AES-256-GCM encryption.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectView('passwords')}
+            className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 self-start md:self-auto cursor-pointer"
+          >
+            <span>Add Card or Note</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="p-5 rounded-2xl border border-border bg-card space-y-3">
+            <div className="flex items-center gap-2 text-blue-500 font-bold text-sm">
+              <CreditCard className="w-4 h-4" />
+              <span>Payment Cards Vault</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed text-[11px]">
+              Store cardholder names, 16-digit card numbers, expiration dates, and secret CVV codes. CVV codes remain masked until toggled.
+            </p>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-border bg-card space-y-3">
+            <div className="flex items-center gap-2 text-purple-500 font-bold text-sm">
+              <FileText className="w-4 h-4" />
+              <span>Encrypted Secure Notes</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed text-[11px]">
+              Store confidential Wi-Fi keys, server SSH secrets, passport numbers, or account recovery phrases safely encrypted under your master password.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature 2.7: Standalone Password & Diceware Studio */}
+      <section id="generator" className="space-y-6 scroll-mt-24">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-500 flex items-center justify-center shrink-0 font-bold text-lg">
+              <Wand2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Password & Diceware Passphrase Studio</h2>
+              <p className="text-xs text-muted-foreground">
+                Generate high-entropy random keys or memorable Diceware passphrases with custom character rules and strength calculators.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectView('generator')}
+            className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 self-start md:self-auto cursor-pointer"
+          >
+            <span>Open Generator Studio</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </section>
 
