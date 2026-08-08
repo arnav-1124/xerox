@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Category, ViewMode } from '../types';
 
 interface SidebarProps {
@@ -31,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'home' as ViewMode, label: 'Home Overview', icon: Home },
     { id: 'bookmarks' as ViewMode, label: 'Bookmarks', icon: Bookmark, badge: bookmarkCount },
     { id: 'passwords' as ViewMode, label: 'Password Vault', icon: KeyRound, badge: isUnlocked ? passwordCount : '🔒' },
+    { id: 'security-audit' as ViewMode, label: 'Security Health', icon: ShieldCheck },
     { id: 'favorites' as ViewMode, label: 'Favorites', icon: Star },
     { id: 'extension' as ViewMode, label: 'Browser Extension', icon: Puzzle, highlight: true },
     { id: 'settings' as ViewMode, label: 'Settings & Storage', icon: Settings },

@@ -16,7 +16,9 @@ interface SettingsViewProps {
   settings: VaultSettings;
   onUpdateSettings: (newSettings: VaultSettings) => void;
   onExportEncryptedVault: () => void;
+  onExportCSV: () => void;
   onImportEncryptedVault: (file: File) => void;
+  onImportCSV: (file: File) => void;
   onResetVault: () => void;
   isUnlocked: boolean;
   onOpenExtensionGuide: () => void;
@@ -26,7 +28,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onUpdateSettings,
   onExportEncryptedVault,
+  onExportCSV,
   onImportEncryptedVault,
+  onImportCSV,
   onResetVault,
   isUnlocked,
   onOpenExtensionGuide,
@@ -49,7 +53,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    if (file.name.endsWith('.csv')) {
+      onImportCSV(file);
+    } else {
       onImportEncryptedVault(file);
     }
   };
@@ -139,27 +147,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-card-foreground">Encrypted Vault Backup & Migration</h3>
-            <p className="text-[11px] text-muted-foreground">Export or import your encrypted vault payload JSON</p>
+            <p className="text-[11px] text-muted-foreground">Export or import your vault in Encrypted JSON or CSV format</p>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Backups are exported in AES-GCM encrypted format. Your master password is never stored or exported in plain text.
+          Backups exported in JSON format are fully encrypted using AES-GCM 256-bit encryption. You can also export/import plain CSV files (compatible with Bitwarden, Chrome, and 1Password).
         </p>
 
         <div className="flex flex-wrap gap-3 pt-2">
           <button
             onClick={onExportEncryptedVault}
-            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-2"
+            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export Encrypted Backup JSON</span>
+            <span>Export Encrypted Backup (JSON)</span>
           </button>
+
+          {isUnlocked && (
+            <button
+              onClick={onExportCSV}
+              className="px-4 py-2 rounded-lg bg-secondary border border-border text-foreground hover:bg-accent font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-500" />
+              <span>Export Unencrypted CSV</span>
+            </button>
+          )}
 
           <label className="px-4 py-2 rounded-lg bg-muted hover:bg-accent border border-border text-foreground font-semibold text-xs cursor-pointer transition-colors flex items-center gap-2">
             <Upload className="w-3.5 h-3.5 text-blue-500" />
-            <span>Import Backup JSON</span>
-            <input type="file" accept=".json" onChange={handleFileChange} className="hidden" />
+            <span>Import JSON / CSV</span>
+            <input type="file" accept=".json,.csv" onChange={handleFileChange} className="hidden" />
           </label>
         </div>
       </div>

@@ -33,6 +33,7 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { MasterPasswordModal } from './components/MasterPasswordModal';
 import { CommandPalette } from './components/CommandPalette';
 import { SettingsView } from './components/SettingsView';
+import { SecurityAuditView } from './components/SecurityAuditView';
 import { ExtensionGuideModal } from './components/ExtensionGuideModal';
 import { LandingHero } from './components/LandingHero';
 import { ToastContainer, ToastMessage } from './components/Toast';
@@ -354,6 +355,102 @@ export default function App() {
     addToast('Encrypted backup exported', 'success');
   };
 
+  const handleExportCSV = () => {
+    if (!isUnlocked || decryptedPasswords.length === 0) {
+      addToast('No decrypted passwords to export. Unlock vault first.', 'error');
+      return;
+    }
+
+    const headers = ['title', 'url', 'username', 'password', 'notes', 'category'];
+    const rows = decryptedPasswords.map((p) => [
+      `"${(p.websiteName || '').replace(/"/g, '""')}"`,
+      `"${(p.websiteUrl || '').replace(/"/g, '""')}"`,
+      `"${(p.username || '').replace(/"/g, '""')}"`,
+      `"${(p.password || '').replace(/"/g, '""')}"`,
+      `"${(p.notes || '').replace(/"/g, '""')}"`,
+      `"${(p.category || 'General').replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `xerox-passwords-export-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    addToast('CSV Passwords Exported successfully', 'success');
+  };
+
+  const handleImportCSV = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) return;
+
+        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        if (lines.length < 2) {
+          addToast('CSV file appears empty or invalid', 'error');
+          return;
+        }
+
+        // Parse Header
+        const headerCols = lines[0].split(',').map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
+        const titleIdx = headerCols.findIndex((h) => h.includes('title') || h.includes('name'));
+        const urlIdx = headerCols.findIndex((h) => h.includes('url') || h.includes('website'));
+        const userIdx = headerCols.findIndex((h) => h.includes('user') || h.includes('login') || h.includes('email'));
+        const passIdx = headerCols.findIndex((h) => h.includes('pass') || h.includes('secret'));
+        const notesIdx = headerCols.findIndex((h) => h.includes('note') || h.includes('comment'));
+        const catIdx = headerCols.findIndex((h) => h.includes('cat') || h.includes('folder'));
+
+        const newEntries: PasswordEntry[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const rawRow = lines[i];
+          // simple CSV splitter matching quotes
+          const cols = rawRow.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rawRow.split(',');
+          const cleanCols = cols.map((c) => c.replace(/^"|"$/g, '').trim());
+
+          const title = (titleIdx >= 0 && cleanCols[titleIdx]) || cleanCols[0] || 'Imported Entry';
+          const websiteUrl = (urlIdx >= 0 && cleanCols[urlIdx]) || '';
+          const username = (userIdx >= 0 && cleanCols[userIdx]) || '';
+          const password = (passIdx >= 0 && cleanCols[passIdx]) || '';
+          const notes = (notesIdx >= 0 && cleanCols[notesIdx]) || '';
+          const category = (catIdx >= 0 && cleanCols[catIdx]) || 'Imported';
+
+          if (title || password) {
+            newEntries.push({
+              id: 'pwd-imp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+              websiteName: title,
+              websiteUrl: websiteUrl.startsWith('http') ? websiteUrl : websiteUrl ? `https://${websiteUrl}` : '',
+              username,
+              password,
+              notes,
+              category,
+              isFavorite: false,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+
+        if (newEntries.length > 0) {
+          const merged = [...newEntries, ...decryptedPasswords];
+          await saveAndEncryptPasswords(merged);
+          addToast(`Successfully imported ${newEntries.length} password entries`, 'success');
+        } else {
+          addToast('No valid password records parsed from CSV', 'error');
+        }
+      } catch (err) {
+        addToast('Failed to parse CSV file', 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleImportBackup = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -538,12 +635,30 @@ export default function App() {
             </div>
           )}
 
+          {currentView === 'security-audit' && (
+            <div className="p-6">
+              <SecurityAuditView
+                passwords={decryptedPasswords}
+                isUnlocked={isUnlocked}
+                onUnlockClick={() => setIsMasterPasswordModalOpen(true)}
+                onEditPassword={(entry) => {
+                  setEditingPassword(entry);
+                  setIsPasswordModalOpen(true);
+                }}
+                onUpdatePassword={handleSavePassword}
+                addToast={addToast}
+              />
+            </div>
+          )}
+
           {currentView === 'settings' && (
             <SettingsView
               settings={settings}
               onUpdateSettings={handleUpdateSettings}
               onExportEncryptedVault={handleExportBackup}
+              onExportCSV={handleExportCSV}
               onImportEncryptedVault={handleImportBackup}
+              onImportCSV={handleImportCSV}
               onResetVault={handleResetVault}
               isUnlocked={isUnlocked}
               onOpenExtensionGuide={() => setIsExtensionGuideOpen(true)}

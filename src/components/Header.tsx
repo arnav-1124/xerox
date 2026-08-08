@@ -41,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
         return 'Categories';
       case 'settings':
         return 'Settings & Security';
+      case 'security-audit':
+        return 'Security Health Audit';
       case 'extension':
         return 'Browser Extension';
       default:
