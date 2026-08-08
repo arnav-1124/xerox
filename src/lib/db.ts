@@ -169,6 +169,7 @@ export async function saveVaultMeta(meta: VaultMetadata): Promise<void> {
       // Sync to localStorage or Extension channel if needed
       try {
         localStorage.setItem('xerox_vault_meta_sync', JSON.stringify(meta));
+        window.postMessage({ type: 'XEROX_SYNC_VAULT', vaultMeta: meta, encryptedVault: meta.encryptedVault }, '*');
       } catch (e) {
         console.error('Local sync failed', e);
       }

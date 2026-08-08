@@ -112,6 +112,13 @@ export default function App() {
         setVaultMeta(meta);
         setSettingsState(st);
 
+        if (meta && meta.encryptedVault) {
+          try {
+            localStorage.setItem('xerox_vault_meta_sync', JSON.stringify(meta));
+            window.postMessage({ type: 'XEROX_SYNC_VAULT', vaultMeta: meta, encryptedVault: meta.encryptedVault }, '*');
+          } catch (e) {}
+        }
+
         // If vault hasn't been set up yet, show initial setup modal
         if (!meta || !meta.isInitialized) {
           setIsMasterPasswordModalOpen(true);
