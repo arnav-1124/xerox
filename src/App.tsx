@@ -36,6 +36,7 @@ import { SettingsView } from './components/SettingsView';
 import { SecurityAuditView } from './components/SecurityAuditView';
 import { FeatureGuideView } from './components/FeatureGuideView';
 import { ExtensionGuideModal } from './components/ExtensionGuideModal';
+import { SharePasswordModal, ReceiveShareModal } from './components/SharePasswordModal';
 import { LandingHero } from './components/LandingHero';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { Puzzle, Star } from 'lucide-react';
@@ -85,6 +86,21 @@ export default function App() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isExtensionGuideOpen, setIsExtensionGuideOpen] = useState(false);
+
+  // Secure Zero-Knowledge Share States
+  const [sharingPassword, setSharingPassword] = useState<PasswordEntry | null>(null);
+  const [receivedShareHash, setReceivedShareHash] = useState<string | null>(null);
+
+  // Check URL hash for #share=...
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#share=')) {
+      const payloadHash = hash.replace('#share=', '');
+      if (payloadHash) {
+        setReceivedShareHash(payloadHash);
+      }
+    }
+  }, []);
 
   // Toast System
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -506,6 +522,7 @@ export default function App() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           isUnlocked={isUnlocked}
+          autoLockMinutes={settings.autoLockMinutes}
           theme={theme}
           onToggleTheme={toggleTheme}
           onToggleLock={() => {
@@ -576,6 +593,7 @@ export default function App() {
                 setEditingPassword(null);
                 setIsPasswordModalOpen(true);
               }}
+              onShare={(entry) => setSharingPassword(entry)}
             />
           )}
 
@@ -745,6 +763,24 @@ export default function App() {
         isOpen={isExtensionGuideOpen}
         onClose={() => setIsExtensionGuideOpen(false)}
       />
+
+      <SharePasswordModal
+        isOpen={!!sharingPassword}
+        onClose={() => setSharingPassword(null)}
+        entry={sharingPassword}
+        addToast={addToast}
+      />
+
+      {receivedShareHash && (
+        <ReceiveShareModal
+          encryptedHash={receivedShareHash}
+          onClose={() => {
+            setReceivedShareHash(null);
+            window.history.replaceState(null, '', window.location.pathname);
+          }}
+          addToast={addToast}
+        />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

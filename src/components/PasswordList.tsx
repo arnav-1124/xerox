@@ -11,6 +11,7 @@ import {
   KeyRound,
   ShieldAlert,
   Globe,
+  Share2,
 } from 'lucide-react';
 import { PasswordEntry } from '../types';
 
@@ -25,6 +26,7 @@ interface PasswordListProps {
   onDelete: (id: string) => void;
   onCopyText: (text: string, label: string) => void;
   onOpenAddModal: () => void;
+  onShare?: (entry: PasswordEntry) => void;
 }
 
 export const PasswordList: React.FC<PasswordListProps> = ({
@@ -38,6 +40,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
   onDelete,
   onCopyText,
   onOpenAddModal,
+  onShare,
 }) => {
   const [revealedMap, setRevealedMap] = useState<Record<string, boolean>>({});
 
@@ -207,6 +210,15 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                     {/* Actions */}
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {onShare && (
+                          <button
+                            onClick={() => onShare(item)}
+                            className="p-1 text-muted-foreground hover:text-purple-500 transition-colors"
+                            title="Secure Share Link"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => onEdit(item)}
                           className="p-1 text-muted-foreground hover:text-foreground transition-colors"

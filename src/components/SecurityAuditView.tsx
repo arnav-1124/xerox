@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { PasswordEntry } from '../types';
-import { calculatePasswordStrength, generateSecurePassword } from '../lib/crypto';
+import { calculatePasswordStrength, generateSecurePassword, checkPasswordBreached } from '../lib/crypto';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -16,6 +16,8 @@ import {
   Search,
   Clock,
   CopyCheck,
+  Flame,
+  Loader2,
 } from 'lucide-react';
 
 interface SecurityAuditViewProps {
@@ -35,9 +37,37 @@ export const SecurityAuditView: React.FC<SecurityAuditViewProps> = ({
   onUpdatePassword,
   addToast,
 }) => {
-  const [filterType, setFilterType] = useState<'all' | 'weak' | 'reused' | 'stale'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'weak' | 'reused' | 'stale' | 'breached'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isScanningBreaches, setIsScanningBreaches] = useState(false);
+  const [breachedMap, setBreachedMap] = useState<Record<string, number>>({});
+
+  const handleScanBreaches = async () => {
+    if (!isUnlocked || passwords.length === 0) return;
+    setIsScanningBreaches(true);
+    addToast('Scanning passwords against HaveIBeenPwned k-Anonymity database...', 'info');
+
+    const results: Record<string, number> = {};
+    let breachCount = 0;
+
+    for (const entry of passwords) {
+      const res = await checkPasswordBreached(entry.password);
+      if (res.breached) {
+        results[entry.id] = res.count;
+        breachCount++;
+      }
+    }
+
+    setBreachedMap(results);
+    setIsScanningBreaches(false);
+
+    if (breachCount > 0) {
+      addToast(`⚠️ Found ${breachCount} compromised password(s) in public data breaches!`, 'error');
+    } else {
+      addToast('✅ Great news! None of your saved passwords were found in dark web breach dumps.', 'success');
+    }
+  };
 
   // Analyze Passwords
   const auditResults = useMemo(() => {
@@ -186,13 +216,28 @@ export const SecurityAuditView: React.FC<SecurityAuditViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => addToast('Security audit refreshed', 'info')}
-          className="px-4 py-2 bg-secondary text-secondary-foreground border border-border text-xs font-medium rounded-lg hover:bg-accent transition-colors flex items-center gap-2 self-start sm:self-auto cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Re-Analyze Vault
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleScanBreaches}
+            disabled={isScanningBreaches}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isScanningBreaches ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Flame className="w-3.5 h-3.5" />
+            )}
+            <span>k-Anonymity Leak Scan</span>
+          </button>
+
+          <button
+            onClick={() => addToast('Security audit refreshed', 'info')}
+            className="px-4 py-2 bg-secondary text-secondary-foreground border border-border text-xs font-medium rounded-lg hover:bg-accent transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Re-Analyze
+          </button>
+        </div>
       </div>
 
       {/* Score Overview Banner */}

@@ -10,6 +10,12 @@ export interface Bookmark {
   customIcon?: string;
 }
 
+export interface PasswordHistoryItem {
+  id: string;
+  password: string;
+  updatedAt: number;
+}
+
 export interface PasswordEntry {
   id: string;
   websiteName: string;
@@ -21,6 +27,7 @@ export interface PasswordEntry {
   isFavorite: boolean;
   createdAt: number;
   updatedAt: number;
+  history?: PasswordHistoryItem[];
 }
 
 export interface EncryptedVaultData {

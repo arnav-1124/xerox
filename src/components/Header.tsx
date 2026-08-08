@@ -7,6 +7,7 @@ interface HeaderProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   isUnlocked: boolean;
+  autoLockMinutes?: number;
   onToggleLock: () => void;
   onOpenCommandPalette: () => void;
   onOpenNewItemModal: () => void;
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   onSearchChange,
   isUnlocked,
+  autoLockMinutes,
   onToggleLock,
   onOpenCommandPalette,
   onOpenNewItemModal,
@@ -95,15 +97,22 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Lock / Unlock Toggle */}
         <button
           onClick={onToggleLock}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all cursor-pointer ${
             isUnlocked
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
               : 'bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20'
           }`}
-          title={isUnlocked ? 'Lock Vault Now' : 'Unlock Vault'}
+          title={isUnlocked ? 'Lock Vault Now (Ctrl + L)' : 'Unlock Vault'}
         >
           {isUnlocked ? <Unlock className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-destructive" />}
-          <span className="hidden sm:inline">{isUnlocked ? 'Vault Unlocked' : 'Vault Locked'}</span>
+          <span className="hidden sm:inline">
+            {isUnlocked ? 'Unlocked' : 'Vault Locked'}
+          </span>
+          {isUnlocked && autoLockMinutes && autoLockMinutes > 0 && (
+            <span className="hidden lg:inline text-[10px] text-muted-foreground border-l border-emerald-500/30 pl-1.5 ml-0.5">
+              Lock in {autoLockMinutes}m
+            </span>
+          )}
         </button>
 
         {/* Add New Item Button */}

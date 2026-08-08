@@ -346,6 +346,67 @@ export function generateSecurePassword(options: PasswordGeneratorOptions): strin
   return password;
 }
 
+// Check if password has been exposed in public breaches using k-Anonymity SHA-1 prefix
+export async function checkPasswordBreached(password: string): Promise<{ breached: boolean; count: number }> {
+  if (!password) return { breached: false, count: 0 };
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    let hashHex = '';
+
+    if (isSubtleCryptoAvailable()) {
+      const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    } else {
+      hashHex = CryptoJS.SHA1(password).toString(CryptoJS.enc.Hex).toUpperCase();
+    }
+
+    const prefix = hashHex.substring(0, 5);
+    const suffix = hashHex.substring(5);
+
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { 'Add-Padding': 'true' },
+    });
+
+    if (!res.ok) return { breached: false, count: 0 };
+
+    const text = await res.text();
+    const lines = text.split('\n');
+
+    for (const line of lines) {
+      const [lineSuffix, countStr] = line.split(':');
+      if (lineSuffix.trim() === suffix) {
+        return { breached: true, count: parseInt(countStr.trim(), 10) || 1 };
+      }
+    }
+
+    return { breached: false, count: 0 };
+  } catch (err) {
+    // Network offline or CORS blocked fallback
+    return { breached: false, count: 0 };
+  }
+}
+
+// Encrypt a single item payload for secure zero-knowledge sharing via URL/snippet
+export async function encryptSharePayload(payloadObj: any, passphrase: string): Promise<string> {
+  const jsonStr = JSON.stringify(payloadObj);
+  const encrypted = CryptoJS.AES.encrypt(jsonStr, passphrase).toString();
+  return encodeURIComponent(encrypted);
+}
+
+export function decryptSharePayload(encodedEncryptedStr: string, passphrase: string): any | null {
+  try {
+    const rawEncrypted = decodeURIComponent(encodedEncryptedStr);
+    const decryptedBytes = CryptoJS.AES.decrypt(rawEncrypted, passphrase);
+    const decryptedStr = decryptedBytes.toString(CryptoJS.enc.Utf8);
+    if (!decryptedStr) return null;
+    return JSON.parse(decryptedStr);
+  } catch (err) {
+    return null;
+  }
+}
+
 // Calculate Password Entropy and Strength Rating
 export function calculatePasswordStrength(password: string): {
   score: number;

@@ -58,6 +58,19 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
       formattedUrl = 'https://' + formattedUrl;
     }
 
+    // Preserve history when updating password
+    let updatedHistory = initialEntry?.history || [];
+    if (initialEntry && initialEntry.password !== password) {
+      updatedHistory = [
+        {
+          id: 'hist-' + Date.now(),
+          password: initialEntry.password,
+          updatedAt: initialEntry.updatedAt || Date.now(),
+        },
+        ...updatedHistory,
+      ].slice(0, 5); // Keep last 5 entries
+    }
+
     const entry: PasswordEntry = {
       id: initialEntry?.id || 'pwd-' + Date.now(),
       websiteName: websiteName.trim(),
@@ -69,6 +82,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
       isFavorite,
       createdAt: initialEntry?.createdAt || Date.now(),
       updatedAt: Date.now(),
+      history: updatedHistory,
     };
 
     onSave(entry);
@@ -206,6 +220,27 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
                 className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors resize-none"
               />
             </div>
+
+            {initialEntry?.history && initialEntry.history.length > 0 && (
+              <div className="p-3 bg-secondary/50 rounded-xl border border-border space-y-2">
+                <span className="font-semibold text-[11px] text-muted-foreground block">
+                  Password History (Last {initialEntry.history.length} Previous Passwords)
+                </span>
+                <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                  {initialEntry.history.map((h) => (
+                    <div
+                      key={h.id}
+                      className="flex items-center justify-between text-[11px] font-mono bg-background p-1.5 rounded border border-border"
+                    >
+                      <span className="text-foreground">{h.password}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(h.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
               <button
