@@ -34,6 +34,7 @@ import { MasterPasswordModal } from './components/MasterPasswordModal';
 import { CommandPalette } from './components/CommandPalette';
 import { SettingsView } from './components/SettingsView';
 import { SecurityAuditView } from './components/SecurityAuditView';
+import { FeatureGuideView } from './components/FeatureGuideView';
 import { ExtensionGuideModal } from './components/ExtensionGuideModal';
 import { LandingHero } from './components/LandingHero';
 import { ToastContainer, ToastMessage } from './components/Toast';
@@ -647,6 +648,15 @@ export default function App() {
                 }}
                 onUpdatePassword={handleSavePassword}
                 addToast={addToast}
+              />
+            </div>
+          )}
+
+          {currentView === 'blog' && (
+            <div className="p-6">
+              <FeatureGuideView
+                onSelectView={setCurrentView}
+                onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
               />
             </div>
           )}

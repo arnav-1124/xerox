@@ -116,6 +116,14 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             </button>
 
             <button
+              onClick={() => onNavigate('blog')}
+              className="px-5 py-2.5 bg-secondary text-secondary-foreground font-medium text-sm border border-border hover:bg-accent transition-colors flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-purple-500" />
+              Feature Guide & Docs
+            </button>
+
+            <button
               onClick={onOpenExtensionGuide}
               className="px-5 py-2.5 bg-background text-foreground font-medium text-sm border border-border hover:bg-secondary transition-colors flex items-center gap-2 rounded-lg cursor-pointer"
             >

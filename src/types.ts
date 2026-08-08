@@ -45,4 +45,4 @@ export interface VaultSettings {
   lastUnlockedTime?: number;
 }
 
-export type ViewMode = 'home' | 'bookmarks' | 'passwords' | 'favorites' | 'categories' | 'settings' | 'extension' | 'security-audit';
+export type ViewMode = 'home' | 'bookmarks' | 'passwords' | 'favorites' | 'categories' | 'settings' | 'extension' | 'security-audit' | 'blog';

@@ -43,6 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
         return 'Settings & Security';
       case 'security-audit':
         return 'Security Health Audit';
+      case 'blog':
+        return 'Feature Guide & Visual Docs';
       case 'extension':
         return 'Browser Extension';
       default:
