@@ -223,10 +223,10 @@ export const FeatureGuideView: React.FC<FeatureGuideViewProps> = ({
           <div className="space-y-3 bg-secondary/30 p-5 rounded-2xl border border-border">
             <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Real-Life Example
+              Is 2FA Generation Real? How it Works
             </h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              When logging into GitHub or Google, they ask for a 6-digit verification code from an app. Instead of reaching for your phone every time, Xerox generates the exact same code securely on your computer.
+              Yes! 2FA TOTP (Time-based One-Time Password, RFC 6238) is 100% real and standard. When you set up 2FA on Google, GitHub, or office portals, instead of scanning the QR code with a phone app, you save the secret text key here. Xerox uses the exact same mathematical formula (HMAC-SHA1 with the current 30-second clock) to generate live 6-digit codes right on your device—completely offline, without needing SMS or phone carrier signals!
             </p>
           </div>
 
