@@ -152,52 +152,52 @@ export async function decryptVaultData(
   const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
   const iv = new Uint8Array(base64ToArrayBuffer(ivBase64));
 
-  if (cipherText.startsWith('cjs:') || !isSubtleCryptoAvailable()) {
-    const rawCipherText = cipherText.startsWith('cjs:') ? cipherText.slice(4) : cipherText;
+  if (!cipherText.startsWith('cjs:') && isSubtleCryptoAvailable()) {
     try {
-      const saltHex = CryptoJS.enc.Hex.parse(
-        Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('')
+      const cipherBuffer = base64ToArrayBuffer(cipherText);
+      const key = await deriveKey(masterPassword, salt);
+
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        cipherBuffer
       );
-      const ivHex = CryptoJS.enc.Hex.parse(
-        Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join('')
-      );
 
-      const derivedKey = CryptoJS.PBKDF2(masterPassword, saltHex, {
-        keySize: 256 / 32,
-        iterations: PBKDF2_ITERATIONS,
-        hasher: CryptoJS.algo.SHA256,
-      });
-
-      const decrypted = CryptoJS.AES.decrypt(rawCipherText, derivedKey, {
-        iv: ivHex,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-      });
-
-      const jsonStr = decrypted.toString(CryptoJS.enc.Utf8);
-      if (!jsonStr) {
-        throw new Error('Invalid master password');
-      }
-      return JSON.parse(jsonStr);
-    } catch {
-      throw new Error('Invalid master password or corrupted vault data.');
+      const decoder = new TextDecoder();
+      return JSON.parse(decoder.decode(decryptedBuffer));
+    } catch (webCryptoErr) {
+      console.warn('WebCrypto decryption failed, trying CryptoJS fallback:', webCryptoErr);
     }
   }
 
-  // WebCrypto decryption
-  const cipherBuffer = base64ToArrayBuffer(cipherText);
-  const key = await deriveKey(masterPassword, salt);
-
+  // Fallback to CryptoJS
+  const rawCipherText = cipherText.startsWith('cjs:') ? cipherText.slice(4) : cipherText;
   try {
-    const decryptedBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      cipherBuffer
+    const saltHex = CryptoJS.enc.Hex.parse(
+      Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('')
+    );
+    const ivHex = CryptoJS.enc.Hex.parse(
+      Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join('')
     );
 
-    const decoder = new TextDecoder();
-    return JSON.parse(decoder.decode(decryptedBuffer));
-  } catch (err) {
+    const derivedKey = CryptoJS.PBKDF2(masterPassword, saltHex, {
+      keySize: 256 / 32,
+      iterations: PBKDF2_ITERATIONS,
+      hasher: CryptoJS.algo.SHA256,
+    });
+
+    const decrypted = CryptoJS.AES.decrypt(rawCipherText, derivedKey, {
+      iv: ivHex,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+
+    const jsonStr = decrypted.toString(CryptoJS.enc.Utf8);
+    if (!jsonStr) {
+      throw new Error('Invalid master password');
+    }
+    return JSON.parse(jsonStr);
+  } catch {
     throw new Error('Invalid master password or corrupted vault data.');
   }
 }
@@ -252,42 +252,48 @@ export async function verifyMasterPassword(
   try {
     const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
 
-    if (verifierBase64.startsWith('cjs:') || !isSubtleCryptoAvailable()) {
-      const rawVerifier = verifierBase64.startsWith('cjs:') ? verifierBase64.slice(4) : verifierBase64;
-      const saltHex = CryptoJS.enc.Hex.parse(
-        Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('')
-      );
-      const ivHex = CryptoJS.enc.Hex.parse('000000000000000000000000');
+    if (!verifierBase64.startsWith('cjs:') && isSubtleCryptoAvailable()) {
+      try {
+        const iv = new Uint8Array(12);
+        const cipherBuffer = base64ToArrayBuffer(verifierBase64);
+        const key = await deriveKey(masterPassword, salt);
 
-      const derivedKey = CryptoJS.PBKDF2(masterPassword, saltHex, {
-        keySize: 256 / 32,
-        iterations: PBKDF2_ITERATIONS,
-        hasher: CryptoJS.algo.SHA256,
-      });
+        const decryptedBuffer = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv },
+          key,
+          cipherBuffer
+        );
 
-      const decrypted = CryptoJS.AES.decrypt(rawVerifier, derivedKey, {
-        iv: ivHex,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-      });
-
-      const str = decrypted.toString(CryptoJS.enc.Utf8);
-      return str.startsWith('XEROX_VERIFY_TOKEN');
+        const decoder = new TextDecoder();
+        const str = decoder.decode(decryptedBuffer);
+        if (str === 'XEROX_VERIFY_TOKEN_2026' || str.startsWith('XEROX_VERIFY_TOKEN')) {
+          return true;
+        }
+      } catch {
+        // Fall through to CryptoJS
+      }
     }
 
-    const iv = new Uint8Array(12);
-    const cipherBuffer = base64ToArrayBuffer(verifierBase64);
-    const key = await deriveKey(masterPassword, salt);
-
-    const decryptedBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      cipherBuffer
+    const rawVerifier = verifierBase64.startsWith('cjs:') ? verifierBase64.slice(4) : verifierBase64;
+    const saltHex = CryptoJS.enc.Hex.parse(
+      Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('')
     );
+    const ivHex = CryptoJS.enc.Hex.parse('000000000000000000000000');
 
-    const decoder = new TextDecoder();
-    const str = decoder.decode(decryptedBuffer);
-    return str === 'XEROX_VERIFY_TOKEN_2026' || str.startsWith('XEROX_VERIFY_TOKEN');
+    const derivedKey = CryptoJS.PBKDF2(masterPassword, saltHex, {
+      keySize: 256 / 32,
+      iterations: PBKDF2_ITERATIONS,
+      hasher: CryptoJS.algo.SHA256,
+    });
+
+    const decrypted = CryptoJS.AES.decrypt(rawVerifier, derivedKey, {
+      iv: ivHex,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+
+    const str = decrypted.toString(CryptoJS.enc.Utf8);
+    return str.startsWith('XEROX_VERIFY_TOKEN');
   } catch {
     return false;
   }
