@@ -7,7 +7,7 @@ Xerox is a local-first, privacy-focused Bookmark Manager + Password Manager with
 ## 1. Project Architecture
 
 ```text
-password-manager/
+xerox-vault/
 ├── src/                          ← React Web Application
 │   ├── components/               ← Dark SaaS UI components
 │   │   ├── Header.tsx
@@ -20,6 +20,7 @@ password-manager/
 │   │   ├── ExtensionGuideModal.tsx
 │   │   ├── CommandPalette.tsx
 │   │   ├── SettingsView.tsx
+│   │   ├── ErrorBoundary.tsx     ← Robust runtime crash protector with emergency export
 │   │   └── Toast.tsx
 │   ├── lib/
 │   │   ├── crypto.ts             ← WebCrypto PBKDF2 + AES-GCM & Password Generator
@@ -28,7 +29,7 @@ password-manager/
 │   │   └── extensionExporter.ts  ← JSZip exporter for unpacked extension package
 │   ├── types.ts                  ← TypeScript definitions
 │   ├── App.tsx                   ← State manager & vault lock orchestrator
-│   └── main.tsx
+│   └── main.tsx                  ← PWA service worker registration & error boundary
 ├── extension/                    ← Manifest V3 Chrome/Edge Browser Extension
 │   ├── manifest.json             ← Permissions & scripts declarations
 │   ├── background/
@@ -37,15 +38,20 @@ password-manager/
 │   │   ├── field-detector.js     ← DOM login form inspector & MutationObserver
 │   │   ├── autofill.js           ← DOM input setter & native event dispatcher
 │   │   └── content-script.js     ← Extension content orchestrator & badge UI
-│   ├── popup/
-│   │   ├── popup.html            ← Extension popup markup
-│   │   ├── popup.js              ← Popup lock/unlock controller
-│   │   └── popup.css             ← Popup styling
 │   └── vault/
 │       ├── credential-matcher.js ← Strict origin/domain parser & security rules
 │       └── secure-storage.js     ← WebCrypto decoder for extension worker
-├── DEV_Guide.md
-└── README.md
+├── public/
+│   ├── manifest.json             ← PWA manifest
+│   ├── sw.js                     ← Service Worker for 100% offline caching
+│   ├── robots.txt                ← SEO Crawler rules
+│   ├── sitemap.xml               ← XML Sitemap
+│   └── favicon.svg               ← Custom brand icon
+├── SECURITY.md                   ← Zero-knowledge threat model & vulnerability reporting
+├── CONTRIBUTING.md               ← Contribution guidelines for open source
+├── LICENSE                       ← MIT Open Source License
+├── DEV_Guide.md                  ← Developer reference
+└── README.md                     ← Project overview & branding
 ```
 
 ---
@@ -62,7 +68,7 @@ password-manager/
   * Data payload ciphertext is Base64 encoded and stored in IndexedDB.
 * **Master Password Verification**:
   * Master password is **never stored** anywhere.
-  * A verifier token `"XEROX_VERIFY_TOKEN_2026"` is encrypted with the derived key. Verification checks if this token decrypts cleanly.
+  * A verifier token is encrypted with the derived key. Verification checks if this token decrypts cleanly.
 * **Zero Backend**:
   * All cryptographic keys and decrypted items reside exclusively in client JS memory during an active unlocked session.
   * Locking or auto-lock timeout clears the memory references.
@@ -73,7 +79,7 @@ password-manager/
 
 1. **Origin Verification**:
    * Uses browser `URL` API to extract standard hostnames (`github.com`).
-   * Strict subdomain matching rejects phishing or malicious hosts (`github.com.attacker.com` or `attacker-github.com` will NEVER match `github.com`).
+   * Strict subdomain matching rejects phishing or malicious hosts (`github.com.attacker.com`).
 2. **Minimal Secret Exposure**:
    * Content scripts never receive the full vault.
    * Only the single credential approved by the user is transmitted to the current tab upon explicit authorization.
@@ -82,18 +88,7 @@ password-manager/
 
 ---
 
-## 4. Extension Manifest V3 Permissions
-
-| Permission | Purpose |
-| :--- | :--- |
-| `activeTab` | Access current tab URL for origin matching |
-| `storage` | Store encrypted vault metadata & lock session status locally |
-| `scripting` | Inject field detection and autofill scripts into web forms |
-| `<all_urls>` | Enable login field detection across user-visited websites |
-
----
-
-## 5. Development & Deployment Instructions
+## 4. Development & Deployment Instructions
 
 ### Running the Web Application
 ```bash
@@ -102,7 +97,7 @@ npm run dev
 ```
 Open `http://localhost:3000` in your browser.
 
-### Loading Extension in Chrome / Edge
+### Loading Extension in Chrome / Edge (Free Sideloading)
 1. Click **Extension** in Xerox top bar -> **Download Extension (.zip)**.
 2. Extract the downloaded zip file to a directory.
 3. Open `chrome://extensions` or `edge://extensions`.
@@ -110,8 +105,8 @@ Open `http://localhost:3000` in your browser.
 5. Click **Load unpacked** and choose the extracted directory.
 6. Pin Xerox 🔐 extension to your toolbar!
 
-### Deploying Web App to Vercel / Render
+### Deploying Web App to Vercel
 1. Push repository to GitHub.
-2. Link project in Vercel or Render.
+2. Link project in Vercel.
 3. Build Command: `npm run build`
 4. Output Directory: `dist`
