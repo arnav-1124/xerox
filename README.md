@@ -18,13 +18,13 @@
 ## ✨ Core Features
 
 * **Zero-Knowledge Encryption**: AES-GCM 256-bit encryption backed by PBKDF2 (100,000 iterations). Your master password never leaves your device.
+* **Encrypted File & Document Vault**: Locally store and encrypt confidential PDFs, passports, and keys in IndexedDB without cloud retention.
+* **2FA TOTP Live Authenticator**: Built-in 6-digit Time-based One-Time Password generator with live countdown timers and secret vaulting.
+* **Local Password Health Audit**: Deep offline audit checking passwords against weak patterns, dictionary words, and reuse detection.
 * **Manifest V3 Browser Extension**: Real Chrome/Edge browser extension for automatic login form detection and secure credential autofill.
-* **2FA TOTP Authenticator**: Built-in Time-based One-Time Password generator and QR code secret vault.
 * **Secure Payment & Notes Vault**: Store credit cards, secure notes, and sensitive personal items with encrypted fields.
 * **Smart Bookmark Manager**: Organize website links with favicons, categories, tags, descriptions, and favorite toggles.
-* **Password Generator**: Cryptographically secure random password generation with customizable entropy.
-* **Instant Command Palette (`Cmd + K`)**: Quick local search across all vault items.
-* **Encrypted JSON Backups**: Import and export your encrypted vault payload securely.
+* **Password Generator & Auto-Lock Shield**: Cryptographically secure random passwords and configurable inactivity auto-lock.
 
 ---
 

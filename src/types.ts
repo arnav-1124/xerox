@@ -61,6 +61,15 @@ export interface VaultSettings {
   lastUnlockedTime?: number;
 }
 
+export interface EncryptedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  data: string; // Base64 or encrypted data
+  createdAt: number;
+}
+
 export type ViewMode =
   | 'home'
   | 'bookmarks'
@@ -72,4 +81,7 @@ export type ViewMode =
   | 'settings'
   | 'extension'
   | 'security-audit'
+  | 'files'
+  | 'totp'
   | 'blog';
+

@@ -1,8 +1,8 @@
-import { Bookmark, Category, EncryptedVaultData, VaultSettings } from '../types';
+import { Bookmark, Category, EncryptedFile, EncryptedVaultData, VaultSettings } from '../types';
 import { INITIAL_BOOKMARKS, INITIAL_CATEGORIES } from './sampleData';
 
 const DB_NAME = 'XeroxLocalVaultDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -29,6 +29,10 @@ function getDB(): Promise<IDBDatabase> {
 
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' });
+      }
+
+      if (!db.objectStoreNames.contains('encrypted_files')) {
+        db.createObjectStore('encrypted_files', { keyPath: 'id' });
       }
     };
 
@@ -207,9 +211,41 @@ export async function saveSettings(settings: VaultSettings): Promise<void> {
   });
 }
 
+// === ENCRYPTED FILES ===
+
+export async function getEncryptedFiles(): Promise<EncryptedFile[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('encrypted_files', 'readonly');
+    const req = tx.objectStore('encrypted_files').getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveEncryptedFile(file: EncryptedFile): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('encrypted_files', 'readwrite');
+  tx.objectStore('encrypted_files').put(file);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteEncryptedFileDB(id: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('encrypted_files', 'readwrite');
+  tx.objectStore('encrypted_files').delete(id);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function resetDatabase(): Promise<void> {
   const db = await getDB();
-  const stores = ['bookmarks', 'categories', 'vault_meta', 'settings'];
+  const stores = ['bookmarks', 'categories', 'vault_meta', 'settings', 'encrypted_files'];
   const tx = db.transaction(stores, 'readwrite');
   stores.forEach((store) => tx.objectStore(store).clear());
   return new Promise((resolve, reject) => {

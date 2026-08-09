@@ -20,6 +20,9 @@ xerox-vault/
 │   │   ├── ExtensionGuideModal.tsx
 │   │   ├── CommandPalette.tsx
 │   │   ├── SettingsView.tsx
+│   │   ├── SecurityAuditView.tsx   ← Local password health & breach pattern audit
+│   │   ├── FileVaultView.tsx       ← Encrypted file & document local vault
+│   │   ├── TotpAuthenticatorView.tsx ← 2FA TOTP live authenticator generator
 │   │   ├── ErrorBoundary.tsx     ← Robust runtime crash protector with emergency export
 │   │   └── Toast.tsx
 │   ├── lib/

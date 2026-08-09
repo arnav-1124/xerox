@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, Wand2, Database } from 'lucide-react';
+import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, Wand2, Database, FileText, Clock } from 'lucide-react';
 import { Category, ViewMode } from '../types';
 
 interface SidebarProps {
@@ -35,6 +35,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'home' as ViewMode, label: 'Home Overview', icon: Home },
     { id: 'bookmarks' as ViewMode, label: 'Bookmarks', icon: Bookmark, badge: bookmarkCount },
     { id: 'passwords' as ViewMode, label: 'Password Vault', icon: KeyRound, badge: isUnlocked ? passwordCount : '🔒' },
+    { id: 'totp' as ViewMode, label: '2FA TOTP Codes', icon: Clock },
+    { id: 'files' as ViewMode, label: 'Encrypted Files', icon: FileText },
     { id: 'generator' as ViewMode, label: 'Password Studio', icon: Wand2 },
     { id: 'import-export' as ViewMode, label: 'Import / Export', icon: Database },
     { id: 'security-audit' as ViewMode, label: 'Security Health', icon: ShieldCheck },

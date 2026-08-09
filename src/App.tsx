@@ -40,6 +40,8 @@ import { SharePasswordModal, ReceiveShareModal } from './components/SharePasswor
 import { LandingHero } from './components/LandingHero';
 import { StandaloneGeneratorView } from './components/StandaloneGeneratorView';
 import { ImportExportView } from './components/ImportExportView';
+import { FileVaultView } from './components/FileVaultView';
+import { TotpAuthenticatorView } from './components/TotpAuthenticatorView';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { Puzzle, Star } from 'lucide-react';
 
@@ -710,6 +712,21 @@ export default function App() {
                 onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
               />
             </div>
+          )}
+
+          {currentView === 'files' && (
+            <FileVaultView addToast={addToast} masterPasswordMem={masterPasswordMem} />
+          )}
+
+          {currentView === 'totp' && (
+            <TotpAuthenticatorView
+              passwords={decryptedPasswords}
+              addToast={addToast}
+              onEditPassword={(entry) => {
+                setEditingPassword(entry);
+                setIsPasswordModalOpen(true);
+              }}
+            />
           )}
 
           {currentView === 'settings' && (
