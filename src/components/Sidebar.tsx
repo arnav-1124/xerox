@@ -153,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           {/* Clean Scrollable List taking full remaining height */}
-          <div className="space-y-0.5 overflow-y-auto flex-1 min-h-0 pb-2 [scrollbar-width:thin] [-ms-overflow-style:auto] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20">
+          <div className="space-y-0.5 overflow-y-auto flex-1 min-h-0 pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => onSelectCategory(null)}
               title={isCollapsed ? 'All Categories' : undefined}
