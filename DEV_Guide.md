@@ -11,13 +11,14 @@ xerox-vault/
 ├── src/                          ← React Web Application
 │   ├── components/               ← Dark SaaS UI components
 │   │   ├── Header.tsx
-│   │   ├── Sidebar.tsx
+│   │   ├── Sidebar.tsx           ← 2:1 ratio vertical layout with independent scroll
 │   │   ├── BookmarkList.tsx
 │   │   ├── PasswordList.tsx
 │   │   ├── PasswordModal.tsx
 │   │   ├── PasswordGeneratorModal.tsx
 │   │   ├── MasterPasswordModal.tsx
 │   │   ├── ExtensionGuideModal.tsx
+│   │   ├── FeatureGuideView.tsx  ← Comprehensive interactive feature guide & docs
 │   │   ├── CommandPalette.tsx
 │   │   ├── SettingsView.tsx
 │   │   ├── SecurityAuditView.tsx   ← Local password health & breach pattern audit

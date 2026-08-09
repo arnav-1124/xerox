@@ -33,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: 'home' as ViewMode, label: 'Home Overview', icon: Home },
+    { id: 'blog' as ViewMode, label: 'Feature Guide & Docs', icon: BookOpen },
     { id: 'bookmarks' as ViewMode, label: 'Bookmarks', icon: Bookmark, badge: bookmarkCount },
     { id: 'passwords' as ViewMode, label: 'Password Vault', icon: KeyRound, badge: isUnlocked ? passwordCount : '🔒' },
     { id: 'totp' as ViewMode, label: '2FA TOTP Codes', icon: Clock },
@@ -40,7 +41,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'generator' as ViewMode, label: 'Password Studio', icon: Wand2 },
     { id: 'import-export' as ViewMode, label: 'Import / Export', icon: Database },
     { id: 'security-audit' as ViewMode, label: 'Security Health', icon: ShieldCheck },
-    { id: 'blog' as ViewMode, label: 'Feature Guide & Docs', icon: BookOpen },
     { id: 'favorites' as ViewMode, label: 'Favorites', icon: Star },
     { id: 'extension' as ViewMode, label: 'Browser Extension', icon: Puzzle, highlight: true },
     { id: 'settings' as ViewMode, label: 'Settings & Storage', icon: Settings },
@@ -90,8 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Main Navigation */}
-        <nav className="p-2 sm:p-3 space-y-1">
+        {/* Main Navigation (2 parts) */}
+        <nav className="p-2 sm:p-3 space-y-1 overflow-y-auto flex-[2] min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentView === item.id;
@@ -128,8 +128,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Categories Section */}
-        <div className="px-2 sm:px-3 pt-3 border-t border-sidebar-border mt-2 min-h-0 flex-1 flex flex-col">
+        {/* Categories Section (1 part) */}
+        <div className="px-2 sm:px-3 pt-3 border-t border-sidebar-border mt-1 flex-[1] min-h-0 flex flex-col">
           {!isCollapsed ? (
             <div className="flex items-center justify-between px-3 mb-2 shrink-0">
               <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Categories</span>
@@ -153,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           {/* Clean Scrollable List taking full remaining height */}
-          <div className="space-y-0.5 overflow-y-auto flex-1 min-h-0 pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="space-y-0.5 overflow-y-auto flex-1 min-h-0 pb-2 [scrollbar-width:thin] [-ms-overflow-style:auto] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20">
             <button
               onClick={() => onSelectCategory(null)}
               title={isCollapsed ? 'All Categories' : undefined}
