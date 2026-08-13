@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Bookmark as BookmarkIcon } from 'lucide-react';
 import { Bookmark, Category } from '../types';
+import { getCategoryPath } from '../lib/categoryHelper';
 
 interface BookmarkModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ export const BookmarkModal: React.FC<BookmarkModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
-  const [category, setCategory] = useState(categories[0]?.name || 'Work');
+  const [category, setCategory] = useState(categories[0]?.id || '');
   const [description, setDescription] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -27,13 +28,14 @@ export const BookmarkModal: React.FC<BookmarkModalProps> = ({
     if (initialBookmark) {
       setTitle(initialBookmark.title);
       setUrl(initialBookmark.url);
-      setCategory(initialBookmark.category);
+      const matched = categories.find(c => c.id === initialBookmark.category || c.name === initialBookmark.category);
+      setCategory(matched ? matched.id : (categories[0]?.id || ''));
       setDescription(initialBookmark.description || '');
       setIsFavorite(initialBookmark.isFavorite);
     } else {
       setTitle('');
       setUrl('');
-      setCategory(categories[0]?.name || 'Work');
+      setCategory(categories[0]?.id || '');
       setDescription('');
       setIsFavorite(false);
     }
@@ -119,8 +121,8 @@ export const BookmarkModal: React.FC<BookmarkModalProps> = ({
                 className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground outline-none focus:border-ring transition-colors"
               >
                 {categories.map((c) => (
-                  <option key={c.id} value={c.name} className="bg-popover text-popover-foreground">
-                    {c.name}
+                  <option key={c.id} value={c.id} className="bg-popover text-popover-foreground">
+                    {getCategoryPath(c.id, categories)}
                   </option>
                 ))}
               </select>

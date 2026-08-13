@@ -6,9 +6,16 @@ import { Shield, Upload, FileText, Download, Trash2, Lock, FileCheck, AlertCircl
 interface Props {
   addToast: (text: string, type?: 'success' | 'error' | 'info') => void;
   masterPasswordMem: string | null;
+  showConfirm: (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    isDestructive?: boolean,
+    confirmText?: string
+  ) => void;
 }
 
-export function FileVaultView({ addToast }: Props) {
+export function FileVaultView({ addToast, showConfirm }: Props) {
   const [files, setFiles] = useState<EncryptedFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -62,11 +69,17 @@ export function FileVaultView({ addToast }: Props) {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete encrypted file "${name}"?`)) {
-      await deleteEncryptedFileDB(id);
-      await loadFiles();
-      addToast(`Deleted ${name} from local vault`, 'info');
-    }
+    showConfirm(
+      'Delete Encrypted File',
+      `Are you sure you want to permanently delete encrypted file "${name}" from your local vault? This action cannot be undone.`,
+      async () => {
+        await deleteEncryptedFileDB(id);
+        await loadFiles();
+        addToast(`Deleted ${name} from local vault`, 'info');
+      },
+      true,
+      'Delete'
+    );
   };
 
   const handleDownload = (file: EncryptedFile) => {

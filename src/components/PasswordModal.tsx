@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, KeyRound, Wand2, Eye, EyeOff, ShieldAlert, CreditCard, FileText, Lock } from 'lucide-react';
 import { PasswordEntry, Category } from '../types';
+import { getCategoryPath } from '../lib/categoryHelper';
 import { PasswordGeneratorModal } from './PasswordGeneratorModal';
 
 interface PasswordModalProps {
@@ -24,7 +25,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totpSecret, setTotpSecret] = useState('');
-  const [category, setCategory] = useState(categories[0]?.name || 'Work');
+  const [category, setCategory] = useState(categories[0]?.id || '');
   const [notes, setNotes] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -46,7 +47,8 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
       setUsername(initialEntry.username);
       setPassword(initialEntry.password);
       setTotpSecret(initialEntry.totpSecret || '');
-      setCategory(initialEntry.category);
+      const matched = categories.find(c => c.id === initialEntry.category || c.name === initialEntry.category);
+      setCategory(matched ? matched.id : (categories[0]?.id || ''));
       setNotes(initialEntry.notes || '');
       setIsFavorite(initialEntry.isFavorite);
 
@@ -64,7 +66,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
       setUsername('');
       setPassword('');
       setTotpSecret('');
-      setCategory(categories[0]?.name || 'Work');
+      setCategory(categories[0]?.id || '');
       setNotes('');
       setIsFavorite(false);
       setCardNumber('');
@@ -346,8 +348,8 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
                   className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground outline-none focus:border-ring transition-colors"
                 >
                   {categories.map((c) => (
-                    <option key={c.id} value={c.name} className="bg-popover text-popover-foreground">
-                      {c.name}
+                    <option key={c.id} value={c.id} className="bg-popover text-popover-foreground">
+                      {getCategoryPath(c.id, categories)}
                     </option>
                   ))}
                 </select>

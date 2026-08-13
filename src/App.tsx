@@ -47,6 +47,7 @@ import { FileVaultView } from './components/FileVaultView';
 import { TotpAuthenticatorView } from './components/TotpAuthenticatorView';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { BackupPasswordModal } from './components/BackupPasswordModal';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { Puzzle, Star } from 'lucide-react';
 
 export default function App() {
@@ -103,6 +104,45 @@ export default function App() {
   // Encrypted Backup Import State
   const [backupFileToDecrypt, setBackupFileToDecrypt] = useState<any>(null);
   const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
+
+  // Custom Confirmation Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+  } | null>(null);
+
+  const showConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    isDestructive?: boolean,
+    confirmText?: string,
+    cancelText?: string,
+    onCancel?: () => void
+  ) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmDialog(null);
+      },
+      onCancel: () => {
+        if (onCancel) onCancel();
+        setConfirmDialog(null);
+      },
+      confirmText,
+      cancelText,
+      isDestructive,
+    });
+  };
 
   // Check URL hash for #share=...
   useEffect(() => {
@@ -307,10 +347,20 @@ export default function App() {
   };
 
   const handleDeleteBookmark = async (id: string) => {
-    const updated = bookmarks.filter((b) => b.id !== id);
-    setBookmarks(updated);
-    await deleteBookmarkDB(id);
-    addToast('Bookmark deleted', 'info');
+    const target = bookmarks.find((b) => b.id === id);
+    const title = target ? target.title : 'this bookmark';
+    showConfirm(
+      'Delete Bookmark',
+      `Are you sure you want to permanently delete the bookmark "${title}"?`,
+      async () => {
+        const updated = bookmarks.filter((b) => b.id !== id);
+        setBookmarks(updated);
+        await deleteBookmarkDB(id);
+        addToast('Bookmark deleted', 'info');
+      },
+      true,
+      'Delete'
+    );
   };
 
   // Password Vault handlers
@@ -335,17 +385,28 @@ export default function App() {
   };
 
   const handleDeletePassword = async (id: string) => {
-    const updated = decryptedPasswords.filter((p) => p.id !== id);
-    await saveAndEncryptPasswords(updated);
-    addToast('Password entry deleted', 'info');
+    const target = decryptedPasswords.find((p) => p.id === id);
+    const title = target ? target.websiteName : 'this password entry';
+    showConfirm(
+      'Delete Password Entry',
+      `Are you sure you want to permanently delete the credentials for "${title}"? This action cannot be undone.`,
+      async () => {
+        const updated = decryptedPasswords.filter((p) => p.id !== id);
+        await saveAndEncryptPasswords(updated);
+        addToast('Password entry deleted', 'info');
+      },
+      true,
+      'Delete'
+    );
   };
 
   // Categories handlers
-  const handleAddCategory = async (name: string, color: string) => {
+  const handleAddCategory = async (name: string, color: string, parentId?: string) => {
     const newCat: Category = {
       id: 'cat-' + Date.now(),
       name,
       color,
+      parentId,
     };
     const updated = [...categories, newCat];
     setCategories(updated);
@@ -354,10 +415,22 @@ export default function App() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    const updated = categories.filter((c) => c.id !== id);
-    setCategories(updated);
-    await deleteCategoryDB(id);
-    addToast('Category deleted', 'info');
+    const target = categories.find((c) => c.id === id);
+    const catName = target ? target.name : 'this category';
+    showConfirm(
+      'Delete Category',
+      `Are you sure you want to delete the category "${catName}"? Any nested subcategories will be moved to the top level.`,
+      async () => {
+        const updated = categories
+          .filter((c) => c.id !== id)
+          .map((c) => (c.parentId === id ? { ...c, parentId: undefined } : c));
+        setCategories(updated);
+        await saveAllCategories(updated);
+        addToast('Category deleted', 'info');
+      },
+      true,
+      'Delete'
+    );
   };
 
   // Copy Clipboard Helper
@@ -566,12 +639,16 @@ export default function App() {
           decryptPassword
         );
 
-        if (confirm('Importing this backup will overwrite your entire current vault. Do you want to proceed?')) {
-          await performRestore(decryptedData, decryptPassword);
-          addToast('Encrypted backup imported and restored successfully!', 'success');
-          setBackupFileToDecrypt(null);
-          setBackupPasswordError(null);
-        }
+        showConfirm(
+          'Import Encrypted Backup',
+          'Importing this backup will overwrite your entire current vault. All passwords, bookmarks, settings, and files will be replaced. Do you want to proceed?',
+          async () => {
+            await performRestore(decryptedData, decryptPassword);
+            addToast('Encrypted backup imported and restored successfully!', 'success');
+            setBackupFileToDecrypt(null);
+            setBackupPasswordError(null);
+          }
+        );
       } catch (err) {
         console.error(err);
         if (usedPassword) {
@@ -591,46 +668,54 @@ export default function App() {
         return;
       }
 
-      if (confirm('Importing this backup will overwrite your entire current vault. Do you want to proceed?')) {
-        await performRestore(content, masterPasswordMem);
-        addToast('Unencrypted backup imported and restored successfully!', 'success');
-      }
+      showConfirm(
+        'Import Unencrypted Backup',
+        'Importing this backup will overwrite your entire current vault. All passwords, bookmarks, settings, and files will be replaced. Do you want to proceed?',
+        async () => {
+          await performRestore(content, masterPasswordMem);
+          addToast('Unencrypted backup imported and restored successfully!', 'success');
+        }
+      );
       return;
     }
 
     // 3. Legacy Full Backup containing vaultMeta
     if (content.vaultMeta) {
-      if (confirm('Importing this legacy backup will overwrite your entire current vault. Do you want to proceed?')) {
-        if (content.bookmarks) {
-          setBookmarks(content.bookmarks);
-          await saveAllBookmarks(content.bookmarks);
-        }
-        if (content.categories) {
-          setCategories(content.categories);
-          await saveAllCategories(content.categories);
-        }
-        setVaultMeta(content.vaultMeta);
-        await saveVaultMeta(content.vaultMeta);
-
-        if (isUnlocked && masterPasswordMem) {
-          try {
-            const decrypted = await decryptVaultData(
-              content.vaultMeta.encryptedVault.cipherText,
-              content.vaultMeta.encryptedVault.iv,
-              content.vaultMeta.encryptedVault.salt,
-              masterPasswordMem
-            );
-            setDecryptedPasswords(decrypted);
-          } catch {
-            lockVault();
+      showConfirm(
+        'Import Legacy Backup',
+        'Importing this legacy backup will overwrite your entire current vault. All passwords, bookmarks, and categories will be replaced. Do you want to proceed?',
+        async () => {
+          if (content.bookmarks) {
+            setBookmarks(content.bookmarks);
+            await saveAllBookmarks(content.bookmarks);
           }
-        } else {
-          setIsUnlocked(false);
-          setMasterPasswordMem(null);
-          setDecryptedPasswords([]);
+          if (content.categories) {
+            setCategories(content.categories);
+            await saveAllCategories(content.categories);
+          }
+          setVaultMeta(content.vaultMeta);
+          await saveVaultMeta(content.vaultMeta);
+
+          if (isUnlocked && masterPasswordMem) {
+            try {
+              const decrypted = await decryptVaultData(
+                content.vaultMeta.encryptedVault.cipherText,
+                content.vaultMeta.encryptedVault.iv,
+                content.vaultMeta.encryptedVault.salt,
+                masterPasswordMem
+              );
+              setDecryptedPasswords(decrypted);
+            } catch {
+              lockVault();
+            }
+          } else {
+            setIsUnlocked(false);
+            setMasterPasswordMem(null);
+            setDecryptedPasswords([]);
+          }
+          addToast('Legacy vault backup imported successfully', 'success');
         }
-        addToast('Legacy vault backup imported successfully', 'success');
-      }
+      );
       return;
     }
 
@@ -794,6 +879,7 @@ export default function App() {
                 setEditingBookmark(null);
                 setIsBookmarkModalOpen(true);
               }}
+              categories={categories}
             />
           )}
 
@@ -816,6 +902,7 @@ export default function App() {
                 setIsPasswordModalOpen(true);
               }}
               onShare={(entry) => setSharingPassword(entry)}
+              categories={categories}
             />
           )}
 
@@ -846,6 +933,7 @@ export default function App() {
                       setEditingBookmark(null);
                       setIsBookmarkModalOpen(true);
                     }}
+                    categories={categories}
                   />
                 </div>
 
@@ -869,6 +957,7 @@ export default function App() {
                         setEditingPassword(null);
                         setIsPasswordModalOpen(true);
                       }}
+                      categories={categories}
                     />
                   </div>
                 )}
@@ -917,7 +1006,7 @@ export default function App() {
           )}
 
           {currentView === 'files' && (
-            <FileVaultView addToast={addToast} masterPasswordMem={masterPasswordMem} />
+            <FileVaultView addToast={addToast} masterPasswordMem={masterPasswordMem} showConfirm={showConfirm} />
           )}
 
           {currentView === 'totp' && (
@@ -1046,6 +1135,18 @@ export default function App() {
           addToast={addToast}
         />
       )}
+
+      {/* Custom Sleek Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmDialog !== null && confirmDialog.isOpen}
+        title={confirmDialog?.title || ''}
+        message={confirmDialog?.message || ''}
+        confirmText={confirmDialog?.confirmText}
+        cancelText={confirmDialog?.cancelText}
+        isDestructive={confirmDialog?.isDestructive}
+        onConfirm={confirmDialog?.onConfirm || (() => {})}
+        onClose={confirmDialog?.onCancel || (() => {})}
+      />
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

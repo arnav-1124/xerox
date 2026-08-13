@@ -52,6 +52,7 @@ export interface Category {
   name: string;
   color?: string;
   isDefault?: boolean;
+  parentId?: string;
 }
 
 export interface VaultSettings {

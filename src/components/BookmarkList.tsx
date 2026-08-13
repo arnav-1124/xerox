@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Star, Trash2, Edit3, Globe, Folder, Search } from 'lucide-react';
-import { Bookmark } from '../types';
+import { Bookmark, Category } from '../types';
+import { getDescendantCategoryIdsAndNames } from '../lib/categoryHelper';
 
 interface BookmarkListProps {
   bookmarks: Bookmark[];
@@ -10,6 +11,7 @@ interface BookmarkListProps {
   onEdit: (bookmark: Bookmark) => void;
   onDelete: (id: string) => void;
   onOpenAddModal: () => void;
+  categories: Category[];
 }
 
 export const BookmarkList: React.FC<BookmarkListProps> = ({
@@ -20,11 +22,19 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
   onEdit,
   onDelete,
   onOpenAddModal,
+  categories,
 }) => {
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
+  const targetCategoryObj = categories.find(c => c.id === selectedCategory || c.name === selectedCategory);
+  const { ids: allowedIds, names: allowedNames } = targetCategoryObj 
+    ? getDescendantCategoryIdsAndNames(targetCategoryObj.id, categories)
+    : { ids: [], names: [] };
+
   const filteredBookmarks = bookmarks.filter((bm) => {
-    const matchesCategory = selectedCategory ? bm.category === selectedCategory : true;
+    const matchesCategory = selectedCategory 
+      ? (allowedIds.includes(bm.category) || allowedNames.includes(bm.category))
+      : true;
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||

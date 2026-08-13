@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Home, Bookmark, KeyRound, Star, Folder, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, Wand2, Database, FileText, Clock } from 'lucide-react';
+import { Home, Bookmark, KeyRound, Star, Folder, FolderOpen, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, ChevronDown, Wand2, Database, FileText, Clock } from 'lucide-react';
 import { Category, ViewMode } from '../types';
+import { CategoryNode, buildCategoryTree } from '../lib/categoryHelper';
 
 interface SidebarProps {
   currentView: ViewMode;
@@ -30,6 +31,84 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+
+  const toggleExpandCat = (catId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedCats((prev) => ({ ...prev, [catId]: !prev[catId] }));
+  };
+
+  const renderCategoryTree = (nodes: CategoryNode[], level: number = 0) => {
+    return nodes.map((node) => {
+      const cat = node.category;
+      const children = node.children;
+      const hasChildren = children.length > 0;
+      const isExpanded = !!expandedCats[cat.id];
+      const isSelected = selectedCategory === cat.id || selectedCategory === cat.name;
+
+      return (
+        <div key={cat.id} className="space-y-0.5">
+          <button
+            onClick={() => {
+              if (currentView !== 'bookmarks' && currentView !== 'passwords') {
+                onSelectView('bookmarks');
+              }
+              onSelectCategory(cat.id);
+              if (hasChildren) {
+                setExpandedCats(prev => ({ ...prev, [cat.id]: !prev[cat.id] }));
+              }
+              if (onCloseMobile) onCloseMobile();
+            }}
+            title={isCollapsed ? cat.name : undefined}
+            className={`w-full flex items-center justify-between rounded-md text-xs transition-all py-1.5 cursor-pointer ${
+              isCollapsed 
+                ? 'justify-center px-0' 
+                : 'px-2 hover:bg-sidebar-accent/50'
+            } ${
+              isSelected
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border border-sidebar-border/30 shadow-xs'
+                : 'text-muted-foreground hover:text-sidebar-foreground'
+            }`}
+            style={{ paddingLeft: !isCollapsed ? `${level * 12 + 8}px` : undefined }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Chevron icon for expand/collapse */}
+              {!isCollapsed && hasChildren ? (
+                <span
+                  onClick={(e) => toggleExpandCat(cat.id, e)}
+                  className="p-0.5 hover:bg-muted/30 rounded transition-colors text-muted-foreground cursor-pointer shrink-0"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                </span>
+              ) : !isCollapsed ? (
+                <span className="w-4 h-4 shrink-0" />
+              ) : null}
+
+              {/* Folder Icon */}
+              {isExpanded ? (
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" style={{ color: cat.color || '#3b82f6' }} />
+              ) : (
+                <Folder className="w-3.5 h-3.5 shrink-0" style={{ color: cat.color || '#3b82f6' }} />
+              )}
+              
+              {!isCollapsed && <span className="truncate">{cat.name}</span>}
+            </div>
+          </button>
+
+          {/* Children nodes */}
+          {!isCollapsed && hasChildren && isExpanded && (
+            <div className="space-y-0.5 animate-in slide-in-from-top-1 duration-150">
+              {renderCategoryTree(children, level + 1)}
+            </div>
+          )}
+        </div>
+      );
+    });
+  };
 
   const navItems = [
     { id: 'home' as ViewMode, label: 'Home Overview', icon: Home },
@@ -157,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => onSelectCategory(null)}
               title={isCollapsed ? 'All Categories' : undefined}
-              className={`w-full flex items-center ${
+              className={`w-full flex items-center cursor-pointer ${
                 isCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-1.5'
               } rounded-md text-xs transition-all ${
                 selectedCategory === null && (currentView === 'bookmarks' || currentView === 'passwords')
@@ -169,29 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!isCollapsed && <span>All Categories</span>}
             </button>
 
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  if (currentView !== 'bookmarks' && currentView !== 'passwords') {
-                    onSelectView('bookmarks');
-                  }
-                  onSelectCategory(cat.name);
-                  if (onCloseMobile) onCloseMobile();
-                }}
-                title={isCollapsed ? cat.name : undefined}
-                className={`w-full flex items-center ${
-                  isCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-1.5'
-                } rounded-md text-xs transition-all ${
-                  selectedCategory === cat.name
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                    : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color || '#3b82f6' }} />
-                {!isCollapsed && <span className="truncate">{cat.name}</span>}
-              </button>
-            ))}
+            {renderCategoryTree(buildCategoryTree(categories))}
           </div>
         </div>
       </div>

@@ -17,7 +17,8 @@ import {
   Clock,
   ShieldCheck,
 } from 'lucide-react';
-import { PasswordEntry } from '../types';
+import { PasswordEntry, Category } from '../types';
+import { getDescendantCategoryIdsAndNames } from '../lib/categoryHelper';
 import { generateTOTP, getTOTPTimeRemaining } from '../lib/totp';
 
 interface PasswordListProps {
@@ -32,6 +33,7 @@ interface PasswordListProps {
   onCopyText: (text: string, label: string) => void;
   onOpenAddModal: () => void;
   onShare?: (entry: PasswordEntry) => void;
+  categories: Category[];
 }
 
 const TOTPBadge: React.FC<{ secret: string; onCopy: (code: string) => void }> = ({ secret, onCopy }) => {
@@ -89,6 +91,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
   onCopyText,
   onOpenAddModal,
   onShare,
+  categories,
 }) => {
   const [revealedMap, setRevealedMap] = useState<Record<string, boolean>>({});
 
@@ -96,8 +99,15 @@ export const PasswordList: React.FC<PasswordListProps> = ({
     setRevealedMap((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const targetCategoryObj = categories.find(c => c.id === selectedCategory || c.name === selectedCategory);
+  const { ids: allowedIds, names: allowedNames } = targetCategoryObj 
+    ? getDescendantCategoryIdsAndNames(targetCategoryObj.id, categories)
+    : { ids: [], names: [] };
+
   const filteredPasswords = passwords.filter((p) => {
-    const matchesCategory = selectedCategory ? p.category === selectedCategory : true;
+    const matchesCategory = selectedCategory 
+      ? (allowedIds.includes(p.category) || allowedNames.includes(p.category))
+      : true;
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||
