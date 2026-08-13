@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Bookmark, Category, PasswordEntry, VaultSettings, ViewMode } from './types';
 import {
   getBookmarks,
@@ -23,6 +23,10 @@ import {
   verifyMasterPassword,
   encryptVaultData,
   decryptVaultData,
+  DerivedKeyBundle,
+  deriveKeyBundle,
+  encryptVaultDataWithKey,
+  decryptVaultDataWithKey,
 } from './lib/crypto';
 import { INITIAL_DEMO_VAULT_ITEMS } from './lib/sampleData';
 
@@ -81,8 +85,12 @@ export default function App() {
   // Vault Security State
   const [vaultMeta, setVaultMeta] = useState<VaultMetadata | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [masterPasswordMem, setMasterPasswordMem] = useState<string | null>(null);
+  const [derivedKey, setDerivedKey] = useState<DerivedKeyBundle | null>(null);
   const [decryptedPasswords, setDecryptedPasswords] = useState<PasswordEntry[]>([]);
+
+  // Zero-retention clock offset and clipboard refs
+  const [clockSkew, setClockSkew] = useState<number>(0);
+  const clipboardTimeoutRef = useRef<any>(null);
 
   // Modals & UI Controls
   const [isMasterPasswordModalOpen, setIsMasterPasswordModalOpen] = useState(false);
@@ -93,6 +101,12 @@ export default function App() {
   const [editingPassword, setEditingPassword] = useState<PasswordEntry | null>(null);
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categoryModalParentId, setCategoryModalParentId] = useState<string | undefined>(undefined);
+
+  const handleOpenCategoryManager = (defaultParentId?: string) => {
+    setCategoryModalParentId(defaultParentId);
+    setIsCategoryModalOpen(true);
+  };
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isExtensionGuideOpen, setIsExtensionGuideOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -153,6 +167,34 @@ export default function App() {
         setReceivedShareHash(payloadHash);
       }
     }
+  }, []);
+
+  // Persistent storage request and self-origin clock sync
+  useEffect(() => {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then((persistent) => {
+        console.log(persistent ? 'Local storage persistent' : 'Local storage volatile');
+      });
+    }
+
+    const syncClock = async () => {
+      try {
+        const startTime = Date.now();
+        const res = await fetch(window.location.href, { method: 'HEAD', cache: 'no-cache' });
+        const dateHeader = res.headers.get('Date');
+        if (dateHeader) {
+          const serverTime = new Date(dateHeader).getTime();
+          const endTime = Date.now();
+          const latency = (endTime - startTime) / 2;
+          const actualServerTime = serverTime + latency;
+          const skew = actualServerTime - endTime;
+          setClockSkew(skew);
+        }
+      } catch (err) {
+        console.warn('Clock sync failed, using default system time:', err);
+      }
+    };
+    syncClock();
   }, []);
 
   // Toast System
@@ -220,7 +262,7 @@ export default function App() {
   // Lock Vault Helper
   const lockVault = useCallback(() => {
     setIsUnlocked(false);
-    setMasterPasswordMem(null);
+    setDerivedKey(null);
     setDecryptedPasswords([]);
     addToast('Password Vault locked', 'info');
   }, [addToast]);
@@ -240,7 +282,12 @@ export default function App() {
   const handleMasterPasswordSubmit = async (password: string, isSetup: boolean): Promise<boolean> => {
     if (isSetup) {
       // Create new vault
-      const { cipherText, iv, salt } = await encryptVaultData(INITIAL_DEMO_VAULT_ITEMS, password);
+      const saltBytes = new Uint8Array(16);
+      window.crypto.getRandomValues(saltBytes);
+      const salt = btoa(String.fromCharCode(...saltBytes));
+
+      const keyBundle = await deriveKeyBundle(password, salt);
+      const { cipherText, iv } = await encryptVaultDataWithKey(INITIAL_DEMO_VAULT_ITEMS, keyBundle);
       const verifier = await createPasswordVerifier(password, salt);
 
       const meta: VaultMetadata = {
@@ -258,7 +305,7 @@ export default function App() {
 
       await saveVaultMeta(meta);
       setVaultMeta(meta);
-      setMasterPasswordMem(password);
+      setDerivedKey(keyBundle);
       setDecryptedPasswords(INITIAL_DEMO_VAULT_ITEMS);
       setIsUnlocked(true);
       setIsMasterPasswordModalOpen(false);
@@ -273,14 +320,15 @@ export default function App() {
         const isValid = await verifyMasterPassword(password, vaultMeta.salt, vaultMeta.verifier);
         if (!isValid) return false;
 
-        const decrypted = await decryptVaultData(
+        const keyBundle = await deriveKeyBundle(password, vaultMeta.salt);
+        const decrypted = await decryptVaultDataWithKey(
           vaultMeta.encryptedVault.cipherText,
           vaultMeta.encryptedVault.iv,
           vaultMeta.encryptedVault.salt,
-          password
+          keyBundle
         );
 
-        setMasterPasswordMem(password);
+        setDerivedKey(keyBundle);
         setDecryptedPasswords(decrypted);
         setIsUnlocked(true);
         setIsMasterPasswordModalOpen(false);
@@ -297,13 +345,12 @@ export default function App() {
   const saveAndEncryptPasswords = async (newPasswords: PasswordEntry[]) => {
     setDecryptedPasswords(newPasswords);
 
-    if (!masterPasswordMem || !vaultMeta) return;
+    if (!derivedKey || !vaultMeta) return;
 
     try {
-      const { cipherText, iv, salt } = await encryptVaultData(
+      const { cipherText, iv, salt } = await encryptVaultDataWithKey(
         newPasswords,
-        masterPasswordMem,
-        vaultMeta.salt
+        derivedKey
       );
 
       const updatedMeta: VaultMetadata = {
@@ -433,10 +480,30 @@ export default function App() {
     );
   };
 
-  // Copy Clipboard Helper
+  // Copy Clipboard Helper with Auto-Clear security
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     addToast(`${label} copied to clipboard`, 'success');
+
+    // Auto-clear clipboard after 30 seconds for sensitive keys
+    const lowerLabel = label.toLowerCase();
+    if (lowerLabel.includes('password') || lowerLabel.includes('code') || lowerLabel.includes('totp') || lowerLabel.includes('cvv')) {
+      if (clipboardTimeoutRef.current) {
+        clearTimeout(clipboardTimeoutRef.current);
+      }
+      clipboardTimeoutRef.current = setTimeout(async () => {
+        try {
+          const currentClip = await navigator.clipboard.readText();
+          if (currentClip === text) {
+            await navigator.clipboard.writeText('');
+            addToast('Clipboard cleared for security', 'info');
+          }
+        } catch {
+          await navigator.clipboard.writeText('');
+          addToast('Clipboard cleared for security', 'info');
+        }
+      }, 30000);
+    }
   };
 
   // Settings & Export/Import
@@ -447,7 +514,7 @@ export default function App() {
   };
 
   const handleExportJSON = async (encrypted: boolean) => {
-    if (!isUnlocked || !masterPasswordMem) {
+    if (!isUnlocked || !derivedKey) {
       addToast('Please unlock your vault first to export.', 'error');
       setIsMasterPasswordModalOpen(true);
       return;
@@ -455,6 +522,33 @@ export default function App() {
 
     try {
       const files = await getEncryptedFiles();
+
+      // Convert Blobs to Base64 strings for standard JSON backup compatibility
+      const serializedFiles = await Promise.all(
+        files.map(async (file) => {
+          if (file.data instanceof Blob) {
+            const base64Data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file.data as Blob);
+            });
+            return {
+              ...file,
+              data: base64Data,
+            };
+          }
+          return file;
+        })
+      );
+
+      const updatedSettings = {
+        ...settings,
+        lastBackupTime: Date.now(),
+      };
+      setSettingsState(updatedSettings);
+      await saveSettings(updatedSettings);
+
       const backupData = {
         app: 'Xerox Password & Bookmark Manager',
         version: 2,
@@ -463,16 +557,16 @@ export default function App() {
         passwords: decryptedPasswords,
         bookmarks,
         categories,
-        settings,
-        files,
+        settings: updatedSettings,
+        files: serializedFiles,
       };
 
       let finalPayload: any = backupData;
 
       if (encrypted) {
-        const { cipherText, iv, salt } = await encryptVaultData(
+        const { cipherText, iv, salt } = await encryptVaultDataWithKey(
           backupData,
-          masterPasswordMem
+          derivedKey
         );
         finalPayload = {
           app: 'Xerox Password & Bookmark Manager',
@@ -625,25 +719,25 @@ export default function App() {
   const handleImportJSONContent = async (content: any, usedPassword?: string) => {
     // 1. New Encrypted Backup
     if (content.isEncryptedBackup) {
-      const decryptPassword = usedPassword || masterPasswordMem;
-      if (!decryptPassword) {
+      if (!usedPassword) {
         setBackupFileToDecrypt(content);
         return;
       }
 
       try {
-        const decryptedData = await decryptVaultData(
+        const keyBundle = await deriveKeyBundle(usedPassword, content.salt);
+        const decryptedData = await decryptVaultDataWithKey(
           content.cipherText,
           content.iv,
           content.salt,
-          decryptPassword
+          keyBundle
         );
 
         showConfirm(
           'Import Encrypted Backup',
           'Importing this backup will overwrite your entire current vault. All passwords, bookmarks, settings, and files will be replaced. Do you want to proceed?',
           async () => {
-            await performRestore(decryptedData, decryptPassword);
+            await performRestore(decryptedData, usedPassword);
             addToast('Encrypted backup imported and restored successfully!', 'success');
             setBackupFileToDecrypt(null);
             setBackupPasswordError(null);
@@ -651,20 +745,15 @@ export default function App() {
         );
       } catch (err) {
         console.error(err);
-        if (usedPassword) {
-          setBackupPasswordError('Incorrect password for this backup file.');
-        } else {
-          setBackupFileToDecrypt(content);
-        }
+        setBackupPasswordError('Incorrect password for this backup file.');
       }
       return;
     }
 
     // 2. New Unencrypted Backup
     if (content.unencrypted && (content.passwords || content.bookmarks)) {
-      if (!isUnlocked || !masterPasswordMem) {
-        addToast('Please unlock your vault before importing backup.', 'error');
-        setIsMasterPasswordModalOpen(true);
+      if (!usedPassword) {
+        setBackupFileToDecrypt(content);
         return;
       }
 
@@ -672,8 +761,10 @@ export default function App() {
         'Import Unencrypted Backup',
         'Importing this backup will overwrite your entire current vault. All passwords, bookmarks, settings, and files will be replaced. Do you want to proceed?',
         async () => {
-          await performRestore(content, masterPasswordMem);
+          await performRestore(content, usedPassword);
           addToast('Unencrypted backup imported and restored successfully!', 'success');
+          setBackupFileToDecrypt(null);
+          setBackupPasswordError(null);
         }
       );
       return;
@@ -696,13 +787,13 @@ export default function App() {
           setVaultMeta(content.vaultMeta);
           await saveVaultMeta(content.vaultMeta);
 
-          if (isUnlocked && masterPasswordMem) {
+          if (isUnlocked && derivedKey) {
             try {
-              const decrypted = await decryptVaultData(
+              const decrypted = await decryptVaultDataWithKey(
                 content.vaultMeta.encryptedVault.cipherText,
                 content.vaultMeta.encryptedVault.iv,
                 content.vaultMeta.encryptedVault.salt,
-                masterPasswordMem
+                derivedKey
               );
               setDecryptedPasswords(decrypted);
             } catch {
@@ -710,7 +801,7 @@ export default function App() {
             }
           } else {
             setIsUnlocked(false);
-            setMasterPasswordMem(null);
+            setDerivedKey(null);
             setDecryptedPasswords([]);
           }
           addToast('Legacy vault backup imported successfully', 'success');
@@ -759,19 +850,43 @@ export default function App() {
     }
 
     if (data.files) {
-      await saveAllEncryptedFiles(data.files);
+      // Convert base64 string files back to binary Blobs
+      const restoredFiles = data.files.map((file: any) => {
+        if (typeof file.data === 'string' && file.data.includes(';base64,')) {
+          try {
+            const parts = file.data.split(';base64,');
+            const raw = parts[1] || parts[0];
+            const contentType = parts[0].split(':')[1] || file.type;
+            const rawData = atob(raw);
+            const rawLength = rawData.length;
+            const uInt8Array = new Uint8Array(rawLength);
+            for (let i = 0; i < rawLength; ++i) {
+              uInt8Array[i] = rawData.charCodeAt(i);
+            }
+            return {
+              ...file,
+              data: new Blob([uInt8Array], { type: contentType }),
+            };
+          } catch (e) {
+            console.warn('Failed to parse file data during restore:', e);
+          }
+        }
+        return file;
+      });
+      await saveAllEncryptedFiles(restoredFiles);
     } else {
       await saveAllEncryptedFiles([]);
     }
 
     if (data.passwords) {
       setDecryptedPasswords(data.passwords);
-      setMasterPasswordMem(password);
+      const keyBundle = await deriveKeyBundle(password, vaultMeta?.salt || 'salt-' + Date.now());
+      setDerivedKey(keyBundle);
       setIsUnlocked(true);
 
-      const { cipherText, iv, salt } = await encryptVaultData(
+      const { cipherText, iv, salt } = await encryptVaultDataWithKey(
         data.passwords,
-        password
+        keyBundle
       );
       const verifier = await createPasswordVerifier(password, salt);
 
@@ -799,7 +914,7 @@ export default function App() {
     setDecryptedPasswords([]);
     setVaultMeta(null);
     setIsUnlocked(false);
-    setMasterPasswordMem(null);
+    setDerivedKey(null);
     setIsMasterPasswordModalOpen(true);
     addToast('Local vault reset completed', 'info');
   };
@@ -814,7 +929,7 @@ export default function App() {
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
         isUnlocked={isUnlocked}
-        onOpenCategoryManager={() => setIsCategoryModalOpen(true)}
+        onOpenCategoryManager={handleOpenCategoryManager}
         bookmarkCount={bookmarks.length}
         passwordCount={decryptedPasswords.length}
         isMobileOpen={isMobileSidebarOpen}
@@ -861,6 +976,8 @@ export default function App() {
               onOpenExtensionGuide={() => setIsExtensionGuideOpen(true)}
               isUnlocked={isUnlocked}
               onUnlockClick={() => setIsMasterPasswordModalOpen(true)}
+              lastBackupTime={settings.lastBackupTime}
+              onBackupExportClick={() => handleExportJSON(true)}
             />
           )}
 
@@ -1006,7 +1123,7 @@ export default function App() {
           )}
 
           {currentView === 'files' && (
-            <FileVaultView addToast={addToast} masterPasswordMem={masterPasswordMem} showConfirm={showConfirm} />
+            <FileVaultView addToast={addToast} derivedKey={derivedKey} showConfirm={showConfirm} />
           )}
 
           {currentView === 'totp' && (
@@ -1086,6 +1203,7 @@ export default function App() {
         onSave={handleSaveBookmark}
         initialBookmark={editingBookmark}
         categories={categories}
+        defaultCategoryId={selectedCategory || undefined}
       />
 
       <PasswordModal
@@ -1094,6 +1212,7 @@ export default function App() {
         onSave={handleSavePassword}
         initialEntry={editingPassword}
         categories={categories}
+        defaultCategoryId={selectedCategory || undefined}
       />
 
       <CategoryManagerModal
@@ -1102,6 +1221,7 @@ export default function App() {
         categories={categories}
         onAddCategory={handleAddCategory}
         onDeleteCategory={handleDeleteCategory}
+        defaultParentId={categoryModalParentId}
       />
 
       <CommandPalette

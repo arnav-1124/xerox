@@ -24,7 +24,10 @@ function base32ToBytes(base32Str: string): Uint8Array {
 /**
  * Generate 6-digit TOTP code for given base32 secret and time (ms)
  */
-export async function generateTOTP(secret: string, timestampMs = Date.now()): Promise<string> {
+export async function generateTOTP(
+  secret: string,
+  timestampMs = Date.now() + ((typeof window !== 'undefined' && (window as any).clockSkewOffset) || 0)
+): Promise<string> {
   try {
     const cleanSecret = secret.trim().replace(/\s+/g, '');
     if (!cleanSecret) return '';
@@ -73,7 +76,9 @@ export async function generateTOTP(secret: string, timestampMs = Date.now()): Pr
 /**
  * Seconds remaining in current 30s TOTP window
  */
-export function getTOTPTimeRemaining(timestampMs = Date.now()): number {
+export function getTOTPTimeRemaining(
+  timestampMs = Date.now() + ((typeof window !== 'undefined' && (window as any).clockSkewOffset) || 0)
+): number {
   const epochSeconds = Math.floor(timestampMs / 1000);
   return 30 - (epochSeconds % 30);
 }

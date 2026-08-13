@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Bookmark, KeyRound, Star, Folder, FolderOpen, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, ChevronDown, Wand2, Database, FileText, Clock } from 'lucide-react';
+import { Home, Bookmark, KeyRound, Star, Folder, FolderOpen, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, ChevronDown, Wand2, Database, FileText, Clock, Plus } from 'lucide-react';
 import { Category, ViewMode } from '../types';
 import { CategoryNode, buildCategoryTree } from '../lib/categoryHelper';
 
@@ -10,7 +10,7 @@ interface SidebarProps {
   selectedCategory: string | null;
   onSelectCategory: (catName: string | null) => void;
   isUnlocked: boolean;
-  onOpenCategoryManager: () => void;
+  onOpenCategoryManager: (defaultParentId?: string) => void;
   bookmarkCount: number;
   passwordCount: number;
   isMobileOpen?: boolean;
@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               if (onCloseMobile) onCloseMobile();
             }}
             title={isCollapsed ? cat.name : undefined}
-            className={`w-full flex items-center justify-between rounded-md text-xs transition-all py-1.5 cursor-pointer ${
+            className={`w-full flex items-center justify-between rounded-md text-xs transition-all py-1.5 cursor-pointer group/item ${
               isCollapsed 
                 ? 'justify-center px-0' 
                 : 'px-2 hover:bg-sidebar-accent/50'
@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
             style={{ paddingLeft: !isCollapsed ? `${level * 12 + 8}px` : undefined }}
           >
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {/* Chevron icon for expand/collapse */}
               {!isCollapsed && hasChildren ? (
                 <span
@@ -95,8 +95,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Folder className="w-3.5 h-3.5 shrink-0" style={{ color: cat.color || '#3b82f6' }} />
               )}
               
-              {!isCollapsed && <span className="truncate">{cat.name}</span>}
+              {!isCollapsed && <span className="truncate flex-1 text-left">{cat.name}</span>}
             </div>
+
+            {/* Quick Add Subcategory plus button on hover */}
+            {!isCollapsed && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenCategoryManager(cat.id);
+                }}
+                title={`Create subcategory under ${cat.name}`}
+                className="p-0.5 hover:bg-sidebar-accent rounded text-muted-foreground hover:text-foreground opacity-0 group-hover/item:opacity-100 transition-opacity cursor-pointer shrink-0 ml-1"
+              >
+                <Plus className="w-3 h-3" />
+              </span>
+            )}
           </button>
 
           {/* Children nodes */}
@@ -212,18 +226,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isCollapsed ? (
             <div className="flex items-center justify-between px-3 mb-2 shrink-0">
               <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Categories</span>
-              <button
-                onClick={onOpenCategoryManager}
-                className="text-[11px] text-blue-500 dark:text-blue-400 hover:underline font-medium transition-colors"
-              >
-                Manage
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onOpenCategoryManager()}
+                  className="p-1 rounded hover:bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground transition-colors cursor-pointer"
+                  title="Add Top-level Category"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => onOpenCategoryManager()}
+                  className="text-[11px] text-blue-500 dark:text-blue-400 hover:underline font-medium transition-colors cursor-pointer"
+                >
+                  Manage
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex justify-center mb-2 shrink-0">
+            <div className="flex flex-col gap-1 items-center mb-2 shrink-0">
               <button
-                onClick={onOpenCategoryManager}
-                className="p-1 rounded text-muted-foreground hover:text-sidebar-foreground"
+                onClick={() => onOpenCategoryManager()}
+                className="p-1 rounded text-muted-foreground hover:text-sidebar-foreground cursor-pointer"
+                title="Add Category"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onOpenCategoryManager()}
+                className="p-1 rounded text-muted-foreground hover:text-sidebar-foreground cursor-pointer"
                 title="Manage Categories"
               >
                 <Folder className="w-4 h-4" />

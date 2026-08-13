@@ -18,7 +18,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { PasswordEntry, Category } from '../types';
-import { getDescendantCategoryIdsAndNames } from '../lib/categoryHelper';
+import { getDescendantCategoryIdsAndNames, getCategoryPath } from '../lib/categoryHelper';
 import { generateTOTP, getTOTPTimeRemaining } from '../lib/totp';
 
 interface PasswordListProps {
@@ -104,6 +104,9 @@ export const PasswordList: React.FC<PasswordListProps> = ({
     ? getDescendantCategoryIdsAndNames(targetCategoryObj.id, categories)
     : { ids: [], names: [] };
 
+  const selectedCategoryObj = categories.find(c => c.id === selectedCategory || c.name === selectedCategory);
+  const headerTitle = selectedCategoryObj ? getCategoryPath(selectedCategoryObj.id, categories) : '';
+
   const filteredPasswords = passwords.filter((p) => {
     const matchesCategory = selectedCategory 
       ? (allowedIds.includes(p.category) || allowedNames.includes(p.category))
@@ -148,7 +151,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-foreground">
-            {selectedCategory ? `${selectedCategory} Passwords` : 'Password Vault'}
+            {selectedCategory ? `${headerTitle} Passwords` : 'Password Vault'}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             {filteredPasswords.length} decrypted {filteredPasswords.length === 1 ? 'entry' : 'entries'} in memory
@@ -203,7 +206,10 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                         )}
                       </div>
                       <span className="inline-block mt-1 px-2 py-0.5 rounded bg-muted border border-border text-foreground font-medium text-[10px]">
-                        {item.category}
+                        {(() => {
+                          const catObj = categories.find((c) => c.id === item.category || c.name === item.category);
+                          return catObj ? catObj.name : item.category;
+                        })()}
                       </span>
                     </div>
 
@@ -395,7 +401,10 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                       {/* Category */}
                       <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded bg-muted border border-border text-foreground font-medium">
-                          {item.category}
+                          {(() => {
+                            const catObj = categories.find((c) => c.id === item.category || c.name === item.category);
+                            return catObj ? catObj.name : item.category;
+                          })()}
                         </span>
                       </td>
 

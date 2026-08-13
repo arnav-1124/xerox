@@ -9,6 +9,7 @@ interface CategoryManagerModalProps {
   categories: Category[];
   onAddCategory: (name: string, color: string, parentId?: string) => void;
   onDeleteCategory: (id: string) => void;
+  defaultParentId?: string;
 }
 
 const PRESET_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#64748b'];
@@ -19,10 +20,17 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   categories,
   onAddCategory,
   onDeleteCategory,
+  defaultParentId,
 }) => {
   const [newCatName, setNewCatName] = useState('');
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0]);
   const [parentId, setParentId] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setParentId(defaultParentId || '');
+    }
+  }, [isOpen, defaultParentId]);
 
   if (!isOpen) return null;
 

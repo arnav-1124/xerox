@@ -10,6 +10,7 @@ interface PasswordModalProps {
   onSave: (entry: PasswordEntry) => void;
   initialEntry?: PasswordEntry | null;
   categories: Category[];
+  defaultCategoryId?: string;
 }
 
 export const PasswordModal: React.FC<PasswordModalProps> = ({
@@ -18,6 +19,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
   onSave,
   initialEntry,
   categories,
+  defaultCategoryId,
 }) => {
   const [entryType, setEntryType] = useState<'login' | 'card' | 'note'>('login');
   const [websiteName, setWebsiteName] = useState('');
@@ -66,7 +68,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
       setUsername('');
       setPassword('');
       setTotpSecret('');
-      setCategory(categories[0]?.id || '');
+      setCategory(defaultCategoryId || categories[0]?.id || '');
       setNotes('');
       setIsFavorite(false);
       setCardNumber('');
@@ -75,7 +77,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
       setExpiryYear('');
       setCvv('');
     }
-  }, [initialEntry, isOpen, categories]);
+  }, [initialEntry, isOpen, categories, defaultCategoryId]);
 
   if (!isOpen) return null;
 

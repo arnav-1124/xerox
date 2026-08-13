@@ -60,6 +60,7 @@ export interface VaultSettings {
   requireConfirmationForAutofill: boolean;
   trustedDomains: string[];
   lastUnlockedTime?: number;
+  lastBackupTime?: number;
 }
 
 export interface EncryptedFile {
@@ -67,7 +68,7 @@ export interface EncryptedFile {
   name: string;
   size: number;
   type: string;
-  data: string; // Base64 or encrypted data
+  data: Blob | string; // Binary Blob (optimized) or Base64/string
   createdAt: number;
 }
 

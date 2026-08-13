@@ -10,7 +10,8 @@ import {
   GripVertical,
   CheckCircle2,
   Sparkles,
-  Zap
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { ViewMode } from '../types';
 
@@ -19,6 +20,8 @@ interface LandingHeroProps {
   onOpenExtensionGuide: () => void;
   isUnlocked: boolean;
   onUnlockClick: () => void;
+  lastBackupTime?: number;
+  onBackupExportClick: () => void;
 }
 
 export const LandingHero: React.FC<LandingHeroProps> = ({
@@ -26,6 +29,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
   onOpenExtensionGuide,
   isUnlocked,
   onUnlockClick,
+  lastBackupTime,
+  onBackupExportClick,
 }) => {
   const [demoUsername, setDemoUsername] = useState('');
   const [demoPassword, setDemoPassword] = useState('');
@@ -66,10 +71,31 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 
   return (
     <div
-      className="space-y-12 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 select-none"
+      className="space-y-12 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 select-none animate-in fade-in duration-300"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
+      {/* Backup Alert warning banner */}
+      {isUnlocked && (!lastBackupTime || Date.now() - lastBackupTime > 7 * 24 * 60 * 60 * 1000) && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs shadow-sm animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+            </div>
+            <div>
+              <p className="font-bold text-foreground">Local Browser Storage is Volatile — Backup Recommended!</p>
+              <p className="opacity-80">You haven't exported an encrypted JSON backup recently. Browser cache wipes or OS disk cleanups could erase your database permanently.</p>
+            </div>
+          </div>
+          <button
+            onClick={onBackupExportClick}
+            className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg shadow-sm shrink-0 cursor-pointer transition-colors"
+          >
+            Backup Now
+          </button>
+        </div>
+      )}
+
       {/* ─── Hero ─── */}
       <section className="border border-border bg-card p-8 sm:p-12 shadow-sm rounded-2xl">
         <div className="max-w-2xl space-y-5">

@@ -9,6 +9,7 @@ interface BookmarkModalProps {
   onSave: (bookmark: Bookmark) => void;
   initialBookmark?: Bookmark | null;
   categories: Category[];
+  defaultCategoryId?: string;
 }
 
 export const BookmarkModal: React.FC<BookmarkModalProps> = ({
@@ -17,6 +18,7 @@ export const BookmarkModal: React.FC<BookmarkModalProps> = ({
   onSave,
   initialBookmark,
   categories,
+  defaultCategoryId,
 }) => {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -35,11 +37,11 @@ export const BookmarkModal: React.FC<BookmarkModalProps> = ({
     } else {
       setTitle('');
       setUrl('');
-      setCategory(categories[0]?.id || '');
+      setCategory(defaultCategoryId || categories[0]?.id || '');
       setDescription('');
       setIsFavorite(false);
     }
-  }, [initialBookmark, isOpen, categories]);
+  }, [initialBookmark, isOpen, categories, defaultCategoryId]);
 
   if (!isOpen) return null;
 

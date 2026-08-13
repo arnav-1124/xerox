@@ -5,7 +5,7 @@ import { Shield, Upload, FileText, Download, Trash2, Lock, FileCheck, AlertCircl
 
 interface Props {
   addToast: (text: string, type?: 'success' | 'error' | 'info') => void;
-  masterPasswordMem: string | null;
+  derivedKey: any;
   showConfirm: (
     title: string,
     message: string,
@@ -43,28 +43,23 @@ export function FileVaultView({ addToast, showConfirm }: Props) {
 
   const processFiles = async (fileList: File[]) => {
     for (const file of fileList) {
-      if (file.size > 5 * 1024 * 1024) {
-        addToast(`File ${file.name} is too large (Max 5MB for local zero-knowledge store)`, 'error');
+      if (file.size > 15 * 1024 * 1024) {
+        addToast(`File ${file.name} is too large (Max 15MB for local zero-knowledge store)`, 'error');
         continue;
       }
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        const newFile: EncryptedFile = {
-          id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-          name: file.name,
-          size: file.size,
-          type: file.type || 'application/octet-stream',
-          data: base64Data,
-          createdAt: Date.now(),
-        };
-
-        await saveEncryptedFile(newFile);
-        await loadFiles();
-        addToast(`Successfully encrypted and stored ${file.name} locally!`, 'success');
+      const newFile: EncryptedFile = {
+        id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        data: file, // Store raw binary File/Blob (extremely memory-efficient)
+        createdAt: Date.now(),
       };
-      reader.readAsDataURL(file);
+
+      await saveEncryptedFile(newFile);
+      await loadFiles();
+      addToast(`Successfully encrypted and stored ${file.name} locally!`, 'success');
     }
   };
 
@@ -84,13 +79,34 @@ export function FileVaultView({ addToast, showConfirm }: Props) {
 
   const handleDownload = (file: EncryptedFile) => {
     try {
+      let blob: Blob;
+      if (file.data instanceof Blob) {
+        blob = file.data;
+      } else {
+        const parts = file.data.split(';base64,');
+        const raw = parts[1] || parts[0];
+        const contentType = parts[0].split(':')[1] || file.type;
+        const rawData = atob(raw);
+        const rawLength = rawData.length;
+        const uInt8Array = new Uint8Array(rawLength);
+        for (let i = 0; i < rawLength; ++i) {
+          uInt8Array[i] = rawData.charCodeAt(i);
+        }
+        blob = new Blob([uInt8Array], { type: contentType });
+      }
+
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = file.data;
+      a.href = url;
       a.download = file.name;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       addToast(`Decrypted and downloaded ${file.name}`, 'success');
-    } catch (e) {
-      addToast('Failed to download file', 'error');
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to decrypt and download file', 'error');
     }
   };
 

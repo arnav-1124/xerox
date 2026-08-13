@@ -202,6 +202,150 @@ export async function decryptVaultData(
   }
 }
 
+export interface DerivedKeyBundle {
+  cryptoKey: CryptoKey | null;     // WebCrypto derived key
+  fallbackKeyHex: string | null;   // CryptoJS derived key hex representation
+  saltBase64: string;              // Salt used to derive the key
+}
+
+/**
+ * Derives the WebCrypto and CryptoJS keys from the master password and salt once.
+ * Discard the plaintext password immediately after calling this.
+ */
+export async function deriveKeyBundle(masterPassword: string, saltBase64: string): Promise<DerivedKeyBundle> {
+  const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
+  let cryptoKey: CryptoKey | null = null;
+  let fallbackKeyHex: string | null = null;
+
+  if (isSubtleCryptoAvailable()) {
+    try {
+      cryptoKey = await deriveKey(masterPassword, salt);
+    } catch (e) {
+      console.warn('WebCrypto key derivation failed:', e);
+    }
+  }
+
+  // Always derive CryptoJS fallback key as backup or primary non-secure fallback
+  const saltHex = CryptoJS.enc.Hex.parse(
+    Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('')
+  );
+  const derivedKey = CryptoJS.PBKDF2(masterPassword, saltHex, {
+    keySize: 256 / 32,
+    iterations: PBKDF2_ITERATIONS,
+    hasher: CryptoJS.algo.SHA256,
+  });
+  fallbackKeyHex = derivedKey.toString(CryptoJS.enc.Hex);
+
+  return {
+    cryptoKey,
+    fallbackKeyHex,
+    saltBase64,
+  };
+}
+
+/**
+ * Encrypts payload instantly using an already derived key bundle, bypassing PBKDF2.
+ */
+export async function encryptVaultDataWithKey(
+  data: any,
+  keyBundle: DerivedKeyBundle
+): Promise<{ cipherText: string; iv: string; salt: string }> {
+  const salt = new Uint8Array(base64ToArrayBuffer(keyBundle.saltBase64));
+  const iv = getRandomBytes(IV_SIZE);
+
+  if (keyBundle.cryptoKey && isSubtleCryptoAvailable()) {
+    try {
+      const encoder = new TextEncoder();
+      const encodedData = encoder.encode(JSON.stringify(data));
+      const encryptedBuffer = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        keyBundle.cryptoKey,
+        encodedData
+      );
+
+      return {
+        cipherText: arrayBufferToBase64(encryptedBuffer),
+        iv: arrayBufferToBase64(iv.buffer),
+        salt: keyBundle.saltBase64,
+      };
+    } catch (e) {
+      console.warn('WebCrypto encryption with key bundle failed, using CryptoJS fallback:', e);
+    }
+  }
+
+  if (!keyBundle.fallbackKeyHex) {
+    throw new Error('Cryptographic fallback key is missing in key bundle');
+  }
+
+  const derivedKey = CryptoJS.enc.Hex.parse(keyBundle.fallbackKeyHex);
+  const ivHex = CryptoJS.enc.Hex.parse(
+    Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join('')
+  );
+
+  const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), derivedKey, {
+    iv: ivHex,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7,
+  });
+
+  return {
+    cipherText: 'cjs:' + encrypted.toString(),
+    iv: arrayBufferToBase64(iv.buffer),
+    salt: keyBundle.saltBase64,
+  };
+}
+
+/**
+ * Decrypts payload instantly using an already derived key bundle, bypassing PBKDF2.
+ */
+export async function decryptVaultDataWithKey(
+  cipherText: string,
+  ivBase64: string,
+  saltBase64: string,
+  keyBundle: DerivedKeyBundle
+): Promise<any> {
+  const iv = new Uint8Array(base64ToArrayBuffer(ivBase64));
+
+  if (!cipherText.startsWith('cjs:') && keyBundle.cryptoKey && isSubtleCryptoAvailable()) {
+    try {
+      const cipherBuffer = base64ToArrayBuffer(cipherText);
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        keyBundle.cryptoKey,
+        cipherBuffer
+      );
+
+      const decoder = new TextDecoder();
+      return JSON.parse(decoder.decode(decryptedBuffer));
+    } catch (webCryptoErr) {
+      console.warn('WebCrypto decryption with key bundle failed, trying CryptoJS:', webCryptoErr);
+    }
+  }
+
+  if (!keyBundle.fallbackKeyHex) {
+    throw new Error('Cryptographic fallback key is missing in key bundle');
+  }
+
+  const derivedKey = CryptoJS.enc.Hex.parse(keyBundle.fallbackKeyHex);
+  const rawCipherText = cipherText.startsWith('cjs:') ? cipherText.slice(4) : cipherText;
+  const ivHex = CryptoJS.enc.Hex.parse(
+    Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join('')
+  );
+
+  const decrypted = CryptoJS.AES.decrypt(rawCipherText, derivedKey, {
+    iv: ivHex,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7,
+  });
+
+  const jsonStr = decrypted.toString(CryptoJS.enc.Utf8);
+  if (!jsonStr) {
+    throw new Error('Invalid key or corrupted data.');
+  }
+
+  return JSON.parse(jsonStr);
+}
+
 // Generate verification token hash
 export async function createPasswordVerifier(masterPassword: string, saltBase64: string): Promise<string> {
   const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));

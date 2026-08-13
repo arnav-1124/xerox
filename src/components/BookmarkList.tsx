@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Star, Trash2, Edit3, Globe, Folder, Search } from 'lucide-react';
 import { Bookmark, Category } from '../types';
-import { getDescendantCategoryIdsAndNames } from '../lib/categoryHelper';
+import { getDescendantCategoryIdsAndNames, getCategoryPath } from '../lib/categoryHelper';
 
 interface BookmarkListProps {
   bookmarks: Bookmark[];
@@ -30,6 +30,9 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
   const { ids: allowedIds, names: allowedNames } = targetCategoryObj 
     ? getDescendantCategoryIdsAndNames(targetCategoryObj.id, categories)
     : { ids: [], names: [] };
+
+  const selectedCategoryObj = categories.find(c => c.id === selectedCategory || c.name === selectedCategory);
+  const headerTitle = selectedCategoryObj ? getCategoryPath(selectedCategoryObj.id, categories) : '';
 
   const filteredBookmarks = bookmarks.filter((bm) => {
     const matchesCategory = selectedCategory 
@@ -68,8 +71,8 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-foreground">
-            {selectedCategory ? `${selectedCategory} Bookmarks` : 'All Bookmarks'}
+          <h2 className="text-lg sm:text-xl font-bold text-foreground font-sans">
+            {selectedCategory ? `${headerTitle} Bookmarks` : 'All Bookmarks'}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             Showing {filteredBookmarks.length} {filteredBookmarks.length === 1 ? 'bookmark' : 'bookmarks'}
@@ -161,7 +164,10 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
                 {/* Footer Meta & Actions */}
                 <div className="flex items-center justify-between pt-3 border-t border-border text-[11px] text-muted-foreground">
                   <span className="px-2 py-0.5 rounded bg-muted border border-border text-foreground font-medium">
-                    {bm.category}
+                    {(() => {
+                      const catObj = categories.find((c) => c.id === bm.category || c.name === bm.category);
+                      return catObj ? catObj.name : bm.category;
+                    })()}
                   </span>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

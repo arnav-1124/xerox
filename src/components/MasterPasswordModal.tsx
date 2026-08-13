@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, KeyRound, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 interface MasterPasswordModalProps {
@@ -18,11 +18,23 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutSecs, setLockoutSecs] = useState(0);
+
+  useEffect(() => {
+    if (lockoutSecs <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutSecs((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSecs]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutSecs > 0) return;
     setError('');
 
     if (!password.trim()) {
@@ -46,8 +58,27 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
     try {
       const success = await onSubmitPassword(password, isInitialSetup);
       if (!success) {
-        setError('Incorrect Master Password. Please try again.');
+        const nextAttempts = failedAttempts + 1;
+        setFailedAttempts(nextAttempts);
+
+        let seconds = 0;
+        if (nextAttempts >= 5) {
+          seconds = 60;
+        } else if (nextAttempts === 4) {
+          seconds = 15;
+        } else if (nextAttempts === 3) {
+          seconds = 5;
+        }
+
+        if (seconds > 0) {
+          setLockoutSecs(seconds);
+          setError(`Too many failed attempts. Locked out for ${seconds} seconds.`);
+        } else {
+          setError('Incorrect Master Password. Please try again.');
+        }
       } else {
+        setFailedAttempts(0);
+        setLockoutSecs(0);
         setPassword('');
         setConfirmPassword('');
       }
@@ -97,7 +128,8 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
               placeholder="Enter Master Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors text-sm"
+              disabled={lockoutSecs > 0}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -120,11 +152,23 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
           <div className="pt-2">
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-500 shadow-sm transition-all flex items-center justify-center gap-2 text-xs"
+              disabled={loading || lockoutSecs > 0}
+              className={`w-full py-2.5 px-4 rounded-xl font-semibold text-white shadow-sm transition-all flex items-center justify-center gap-2 text-xs cursor-pointer ${
+                lockoutSecs > 0
+                  ? 'bg-muted-foreground/30 text-muted-foreground cursor-not-allowed border border-border'
+                  : 'bg-blue-600 hover:bg-blue-500 shadow-sm shadow-blue-500/10'
+              }`}
             >
               <KeyRound className="w-4 h-4" />
-              <span>{loading ? 'Decrypting Vault...' : isInitialSetup ? 'Create Local Vault' : 'Unlock Vault'}</span>
+              <span>
+                {loading
+                  ? 'Decrypting Vault...'
+                  : lockoutSecs > 0
+                  ? `Locked out (${lockoutSecs}s)`
+                  : isInitialSetup
+                  ? 'Create Local Vault'
+                  : 'Unlock Vault'}
+              </span>
             </button>
           </div>
 
@@ -133,7 +177,7 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 Cancel / Keep Locked
               </button>
