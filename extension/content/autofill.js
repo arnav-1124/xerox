@@ -6,94 +6,158 @@
   window.XeroxAutofill = {
     fillCredentials(usernameInput, passwordInput, credential) {
       if (!credential) return;
-
-      if (usernameInput && credential.username) {
-        this.setInputValue(usernameInput, credential.username);
-      }
-
-      if (passwordInput && credential.password) {
-        this.setInputValue(passwordInput, credential.password);
-      }
+      if (usernameInput && credential.username) this.setInputValue(usernameInput, credential.username);
+      if (passwordInput && credential.password) this.setInputValue(passwordInput, credential.password);
     },
-
     setInputValue(inputElement, value) {
       if (!inputElement) return;
+      try {
+        inputElement.focus();
+        inputElement.click();
 
-      // React / Vue input value tracker workaround
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set;
+        const proto = Object.getPrototypeOf(inputElement);
+        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+        if (descriptor && descriptor.set) {
+          descriptor.set.call(inputElement, value);
+        } else {
+          inputElement.value = value;
+        }
 
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(inputElement, value);
-      } else {
+        inputElement.dispatchEvent(new Event('keydown', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('keypress', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('keyup', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
+      } catch (e) {
         inputElement.value = value;
       }
-
-      // Dispatch native browser events so modern UI frameworks detect changes
-      inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-      inputElement.dispatchEvent(new Event('change', { bubbles: true }));
-      inputElement.dispatchEvent(new Event('blur', { bubbles: true }));
     },
+    makeDraggable(element) {
+      let isDragging = false;
+      let startX = 0, startY = 0;
+      let initialLeft = 0, initialTop = 0;
 
+      const onMouseDown = (e) => {
+        if (e.target.closest('.xerox-autofill-btn')) return;
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = element.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        element.style.cursor = 'grabbing';
+        element.style.borderColor = '#60a5fa';
+        element.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.4), 0 10px 25px rgba(0,0,0,0.8)';
+
+        document.addEventListener('mousemove', onMouseMove, true);
+        document.addEventListener('mouseup', onMouseUp, true);
+        e.preventDefault();
+      };
+
+      const onMouseMove = (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        const newLeft = Math.max(5, Math.min(window.innerWidth - element.offsetWidth - 5, initialLeft + dx));
+        const newTop = Math.max(5, Math.min(window.innerHeight - element.offsetHeight - 5, initialTop + dy));
+
+        element.style.left = newLeft + 'px';
+        element.style.top = newTop + 'px';
+      };
+
+      const onMouseUp = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        element.style.cursor = 'grab';
+        element.style.borderColor = '#3b82f6';
+        element.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.6)';
+
+        document.removeEventListener('mousemove', onMouseMove, true);
+        document.removeEventListener('mouseup', onMouseUp, true);
+      };
+
+      element.addEventListener('mousedown', onMouseDown);
+    },
     attachAutofillBadge(targetInput, onBadgeClick) {
-      if (targetInput.dataset.xeroxBadgeAttached === 'true') return;
-      targetInput.dataset.xeroxBadgeAttached = 'true';
+      if (document.getElementById('xerox-floating-badge')) return;
+      if (!targetInput) return;
 
       const wrapper = document.createElement('div');
-      wrapper.className = 'xerox-autofill-badge-wrapper';
+      wrapper.id = 'xerox-floating-badge';
       wrapper.style.cssText = `
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 99999;
-        cursor: pointer;
+        position: fixed;
+        z-index: 2147483647;
+        cursor: grab;
         display: flex;
         align-items: center;
-        justify-content: center;
-        background: #181b26;
-        border: 1px solid #2e344a;
-        border-radius: 6px;
-        padding: 4px 8px;
+        gap: 6px;
+        background: #111827;
+        border: 1.5px solid #3b82f6;
+        border-radius: 8px;
+        padding: 4px 10px;
         font-family: system-ui, -apple-system, sans-serif;
         font-size: 12px;
-        color: #e2e8f0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        transition: all 0.2s ease;
+        color: #f3f4f6;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.6), 0 8px 10px -6px rgba(0,0,0,0.5);
+        user-select: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
       `;
 
       wrapper.innerHTML = `
-        <span style="font-size: 13px; margin-right: 4px;">🔐</span>
-        <span style="font-weight: 500; font-size: 11px;">Xerox</span>
+        <span style="font-size: 12px; opacity: 0.7; cursor: grab;" title="Drag to move">⋮⋮</span>
+        <span style="font-size: 13px;">🔐</span>
+        <span style="font-weight: 700; font-size: 11px; color: #60a5fa; letter-spacing: 0.3px;">Xerox</span>
+        <button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; margin-left: 2px; cursor: pointer; transition: background 0.15s;">Autofill</button>
       `;
 
-      wrapper.addEventListener('mouseenter', () => {
-        wrapper.style.borderColor = '#3b82f6';
-        wrapper.style.background = '#222738';
-      });
-
-      wrapper.addEventListener('mouseleave', () => {
-        wrapper.style.borderColor = '#2e344a';
-        wrapper.style.background = '#181b26';
-      });
-
-      wrapper.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onBadgeClick();
-      });
-
-      // Ensure parent container is positioned
-      const parent = targetInput.parentElement;
-      if (parent) {
-        const computedPos = window.getComputedStyle(parent).position;
-        if (computedPos === 'static') {
-          parent.style.position = 'relative';
+      const updatePosition = () => {
+        if (!targetInput || !document.body.contains(targetInput)) {
+          wrapper.style.display = 'none';
+          return;
         }
-        parent.appendChild(wrapper);
+        const rect = targetInput.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          wrapper.style.display = 'none';
+          return;
+        }
+        wrapper.style.display = 'flex';
+        const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
+        const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + (rect.height / 2) - 15));
+        wrapper.style.left = left + 'px';
+        wrapper.style.top = top + 'px';
+      };
+
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, { passive: true });
+      window.addEventListener('resize', updatePosition, { passive: true });
+
+      (document.body || document.documentElement).appendChild(wrapper);
+
+      this.makeDraggable(wrapper);
+
+      const btn = wrapper.querySelector('.xerox-autofill-btn');
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onBadgeClick();
+        });
       }
+
+      let dragMoved = false;
+      wrapper.addEventListener('mousedown', () => { dragMoved = false; });
+      wrapper.addEventListener('mousemove', () => { dragMoved = true; });
+      wrapper.addEventListener('click', (e) => {
+        if (e.target.closest('.xerox-autofill-btn')) return;
+        if (!dragMoved) {
+          onBadgeClick();
+        }
+      });
     }
   };
 })();

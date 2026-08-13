@@ -16,6 +16,7 @@ export async function generateExtensionZip(): Promise<Blob> {
         host_permissions: ['<all_urls>'],
         background: {
           service_worker: 'background/service-worker.js',
+          type: 'module',
         },
         content_scripts: [
           {

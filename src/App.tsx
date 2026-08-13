@@ -14,6 +14,9 @@ import {
   saveSettings,
   resetDatabase,
   VaultMetadata,
+  getEncryptedFiles,
+  saveAllEncryptedFiles,
+  saveAllCategories,
 } from './lib/db';
 import {
   createPasswordVerifier,
@@ -43,6 +46,7 @@ import { ImportExportView } from './components/ImportExportView';
 import { FileVaultView } from './components/FileVaultView';
 import { TotpAuthenticatorView } from './components/TotpAuthenticatorView';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { BackupPasswordModal } from './components/BackupPasswordModal';
 import { Puzzle, Star } from 'lucide-react';
 
 export default function App() {
@@ -96,6 +100,10 @@ export default function App() {
   const [sharingPassword, setSharingPassword] = useState<PasswordEntry | null>(null);
   const [receivedShareHash, setReceivedShareHash] = useState<string | null>(null);
 
+  // Encrypted Backup Import State
+  const [backupFileToDecrypt, setBackupFileToDecrypt] = useState<any>(null);
+  const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
+
   // Check URL hash for #share=...
   useEffect(() => {
     const hash = window.location.hash;
@@ -135,13 +143,6 @@ export default function App() {
         setVaultMeta(meta);
         setSettingsState(st);
 
-        if (meta && meta.encryptedVault) {
-          try {
-            localStorage.setItem('xerox_vault_meta_sync', JSON.stringify(meta));
-            window.postMessage({ type: 'XEROX_SYNC_VAULT', vaultMeta: meta, encryptedVault: meta.encryptedVault }, '*');
-          } catch (e) {}
-        }
-
         // If vault hasn't been set up yet, show initial setup modal
         if (!meta || !meta.isInitialized) {
           setIsMasterPasswordModalOpen(true);
@@ -152,6 +153,29 @@ export default function App() {
     }
     loadInitialData();
   }, []);
+
+  // Synchronize vault changes to the browser extension
+  useEffect(() => {
+    console.log('App: vaultMeta changed:', vaultMeta);
+    if (vaultMeta && vaultMeta.encryptedVault) {
+      try {
+        console.log('App: Syncing vault to extension...');
+        localStorage.setItem('xerox_vault_meta_sync', JSON.stringify(vaultMeta));
+        window.postMessage({
+          type: 'XEROX_SYNC_VAULT',
+          vaultMeta,
+          encryptedVault: vaultMeta.encryptedVault,
+        }, '*');
+      } catch (e) {
+        console.error('App: Failed to sync vault:', e);
+      }
+    } else if (vaultMeta === null) {
+      try {
+        console.log('App: Clearing synced vault...');
+        localStorage.removeItem('xerox_vault_meta_sync');
+      } catch (e) {}
+    }
+  }, [vaultMeta]);
 
   // Lock Vault Helper
   const lockVault = useCallback(() => {
@@ -349,32 +373,66 @@ export default function App() {
     addToast('Settings updated', 'success');
   };
 
-  const handleExportBackup = () => {
-    if (!vaultMeta || !vaultMeta.encryptedVault) {
-      addToast('No vault data to export', 'error');
+  const handleExportJSON = async (encrypted: boolean) => {
+    if (!isUnlocked || !masterPasswordMem) {
+      addToast('Please unlock your vault first to export.', 'error');
+      setIsMasterPasswordModalOpen(true);
       return;
     }
 
-    const backupPayload = {
-      app: 'Xerox Password & Bookmark Manager',
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      bookmarks,
-      categories,
-      vaultMeta,
-    };
+    try {
+      const files = await getEncryptedFiles();
+      const backupData = {
+        app: 'Xerox Password & Bookmark Manager',
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        unencrypted: !encrypted,
+        passwords: decryptedPasswords,
+        bookmarks,
+        categories,
+        settings,
+        files,
+      };
 
-    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `xerox-encrypted-vault-backup-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      let finalPayload: any = backupData;
 
-    addToast('Encrypted backup exported', 'success');
+      if (encrypted) {
+        const { cipherText, iv, salt } = await encryptVaultData(
+          backupData,
+          masterPasswordMem
+        );
+        finalPayload = {
+          app: 'Xerox Password & Bookmark Manager',
+          version: 2,
+          exportedAt: new Date().toISOString(),
+          isEncryptedBackup: true,
+          cipherText,
+          iv,
+          salt,
+        };
+      }
+
+      const jsonStr = JSON.stringify(finalPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `xerox-vault-${encrypted ? 'encrypted' : 'unencrypted'}-backup-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addToast(
+        encrypted
+          ? 'Successfully exported fully encrypted vault backup.'
+          : 'Successfully exported unencrypted vault backup.',
+        'success'
+      );
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to export vault backup.', 'error');
+    }
   };
 
   const handleExportCSV = () => {
@@ -407,102 +465,246 @@ export default function App() {
     addToast('CSV Passwords Exported successfully', 'success');
   };
 
-  const handleImportCSV = (file: File) => {
+  const handleImportFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
         if (!text) return;
 
-        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-        if (lines.length < 2) {
-          addToast('CSV file appears empty or invalid', 'error');
-          return;
-        }
-
-        // Parse Header
-        const headerCols = lines[0].split(',').map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
-        const titleIdx = headerCols.findIndex((h) => h.includes('title') || h.includes('name'));
-        const urlIdx = headerCols.findIndex((h) => h.includes('url') || h.includes('website'));
-        const userIdx = headerCols.findIndex((h) => h.includes('user') || h.includes('login') || h.includes('email'));
-        const passIdx = headerCols.findIndex((h) => h.includes('pass') || h.includes('secret'));
-        const notesIdx = headerCols.findIndex((h) => h.includes('note') || h.includes('comment'));
-        const catIdx = headerCols.findIndex((h) => h.includes('cat') || h.includes('folder'));
-
-        const newEntries: PasswordEntry[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const rawRow = lines[i];
-          // simple CSV splitter matching quotes
-          const cols = rawRow.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rawRow.split(',');
-          const cleanCols = cols.map((c) => c.replace(/^"|"$/g, '').trim());
-
-          const title = (titleIdx >= 0 && cleanCols[titleIdx]) || cleanCols[0] || 'Imported Entry';
-          const websiteUrl = (urlIdx >= 0 && cleanCols[urlIdx]) || '';
-          const username = (userIdx >= 0 && cleanCols[userIdx]) || '';
-          const password = (passIdx >= 0 && cleanCols[passIdx]) || '';
-          const notes = (notesIdx >= 0 && cleanCols[notesIdx]) || '';
-          const category = (catIdx >= 0 && cleanCols[catIdx]) || 'Imported';
-
-          if (title || password) {
-            newEntries.push({
-              id: 'pwd-imp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
-              websiteName: title,
-              websiteUrl: websiteUrl.startsWith('http') ? websiteUrl : websiteUrl ? `https://${websiteUrl}` : '',
-              username,
-              password,
-              notes,
-              category,
-              isFavorite: false,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            });
+        if (file.name.endsWith('.csv')) {
+          if (!isUnlocked) {
+            addToast('Please unlock your vault before importing CSV credentials.', 'error');
+            setIsMasterPasswordModalOpen(true);
+            return;
           }
-        }
-
-        if (newEntries.length > 0) {
-          const merged = [...newEntries, ...decryptedPasswords];
-          await saveAndEncryptPasswords(merged);
-          addToast(`Successfully imported ${newEntries.length} password entries`, 'success');
+          await handleImportCSVContent(text);
         } else {
-          addToast('No valid password records parsed from CSV', 'error');
+          const content = JSON.parse(text);
+          await handleImportJSONContent(content);
         }
       } catch (err) {
-        addToast('Failed to parse CSV file', 'error');
+        console.error(err);
+        addToast('Failed to parse or import backup file.', 'error');
       }
     };
     reader.readAsText(file);
   };
 
-  const handleImportBackup = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
+  const handleImportCSVContent = async (text: string) => {
+    try {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) {
+        addToast('CSV file appears empty or invalid', 'error');
+        return;
+      }
+
+      // Parse Header
+      const headerCols = lines[0].split(',').map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
+      const titleIdx = headerCols.findIndex((h) => h.includes('title') || h.includes('name'));
+      const urlIdx = headerCols.findIndex((h) => h.includes('url') || h.includes('website'));
+      const userIdx = headerCols.findIndex((h) => h.includes('user') || h.includes('login') || h.includes('email'));
+      const passIdx = headerCols.findIndex((h) => h.includes('pass') || h.includes('secret'));
+      const notesIdx = headerCols.findIndex((h) => h.includes('note') || h.includes('comment'));
+      const catIdx = headerCols.findIndex((h) => h.includes('cat') || h.includes('folder'));
+
+      const newEntries: PasswordEntry[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const rawRow = lines[i];
+        const cols = rawRow.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rawRow.split(',');
+        const cleanCols = cols.map((c) => c.replace(/^"|"$/g, '').trim());
+
+        const title = (titleIdx >= 0 && cleanCols[titleIdx]) || cleanCols[0] || 'Imported Entry';
+        const websiteUrl = (urlIdx >= 0 && cleanCols[urlIdx]) || '';
+        const username = (userIdx >= 0 && cleanCols[userIdx]) || '';
+        const password = (passIdx >= 0 && cleanCols[passIdx]) || '';
+        const notes = (notesIdx >= 0 && cleanCols[notesIdx]) || '';
+        const category = (catIdx >= 0 && cleanCols[catIdx]) || 'Imported';
+
+        if (title || password) {
+          newEntries.push({
+            id: 'pwd-imp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+            websiteName: title,
+            websiteUrl: websiteUrl.startsWith('http') ? websiteUrl : websiteUrl ? `https://${websiteUrl}` : '',
+            username,
+            password,
+            notes,
+            category,
+            isFavorite: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
+      }
+
+      if (newEntries.length > 0) {
+        const merged = [...newEntries, ...decryptedPasswords];
+        await saveAndEncryptPasswords(merged);
+        addToast(`Successfully imported ${newEntries.length} password entries`, 'success');
+      } else {
+        addToast('No valid password records parsed from CSV', 'error');
+      }
+    } catch (err) {
+      addToast('Failed to parse CSV content', 'error');
+    }
+  };
+
+  const handleImportJSONContent = async (content: any, usedPassword?: string) => {
+    // 1. New Encrypted Backup
+    if (content.isEncryptedBackup) {
+      const decryptPassword = usedPassword || masterPasswordMem;
+      if (!decryptPassword) {
+        setBackupFileToDecrypt(content);
+        return;
+      }
+
       try {
-        const content = JSON.parse(e.target?.result as string);
+        const decryptedData = await decryptVaultData(
+          content.cipherText,
+          content.iv,
+          content.salt,
+          decryptPassword
+        );
+
+        if (confirm('Importing this backup will overwrite your entire current vault. Do you want to proceed?')) {
+          await performRestore(decryptedData, decryptPassword);
+          addToast('Encrypted backup imported and restored successfully!', 'success');
+          setBackupFileToDecrypt(null);
+          setBackupPasswordError(null);
+        }
+      } catch (err) {
+        console.error(err);
+        if (usedPassword) {
+          setBackupPasswordError('Incorrect password for this backup file.');
+        } else {
+          setBackupFileToDecrypt(content);
+        }
+      }
+      return;
+    }
+
+    // 2. New Unencrypted Backup
+    if (content.unencrypted && (content.passwords || content.bookmarks)) {
+      if (!isUnlocked || !masterPasswordMem) {
+        addToast('Please unlock your vault before importing backup.', 'error');
+        setIsMasterPasswordModalOpen(true);
+        return;
+      }
+
+      if (confirm('Importing this backup will overwrite your entire current vault. Do you want to proceed?')) {
+        await performRestore(content, masterPasswordMem);
+        addToast('Unencrypted backup imported and restored successfully!', 'success');
+      }
+      return;
+    }
+
+    // 3. Legacy Full Backup containing vaultMeta
+    if (content.vaultMeta) {
+      if (confirm('Importing this legacy backup will overwrite your entire current vault. Do you want to proceed?')) {
         if (content.bookmarks) {
           setBookmarks(content.bookmarks);
           await saveAllBookmarks(content.bookmarks);
         }
-        if (content.vaultMeta) {
-          setVaultMeta(content.vaultMeta);
-          await saveVaultMeta(content.vaultMeta);
+        if (content.categories) {
+          setCategories(content.categories);
+          await saveAllCategories(content.categories);
         }
-        addToast('Encrypted vault backup imported successfully', 'success');
-      } catch {
-        addToast('Invalid backup file format', 'error');
+        setVaultMeta(content.vaultMeta);
+        await saveVaultMeta(content.vaultMeta);
+
+        if (isUnlocked && masterPasswordMem) {
+          try {
+            const decrypted = await decryptVaultData(
+              content.vaultMeta.encryptedVault.cipherText,
+              content.vaultMeta.encryptedVault.iv,
+              content.vaultMeta.encryptedVault.salt,
+              masterPasswordMem
+            );
+            setDecryptedPasswords(decrypted);
+          } catch {
+            lockVault();
+          }
+        } else {
+          setIsUnlocked(false);
+          setMasterPasswordMem(null);
+          setDecryptedPasswords([]);
+        }
+        addToast('Legacy vault backup imported successfully', 'success');
       }
-    };
-    reader.readAsText(file);
+      return;
+    }
+
+    // 4. Simple entries array or parsed passwords/bookmarks JSON
+    if (Array.isArray(content.passwords) || Array.isArray(content)) {
+      if (!isUnlocked) {
+        addToast('Please unlock your vault before importing passwords.', 'error');
+        setIsMasterPasswordModalOpen(true);
+        return;
+      }
+      const importedP = Array.isArray(content.passwords) ? content.passwords : content;
+      const importedB = content.bookmarks || [];
+      const mergedP = [...importedP, ...decryptedPasswords];
+      await saveAndEncryptPasswords(mergedP);
+      if (importedB.length > 0) {
+        const mergedB = [...importedB, ...bookmarks];
+        setBookmarks(mergedB);
+        await saveAllBookmarks(mergedB);
+      }
+      addToast(`Successfully imported entries!`, 'success');
+      return;
+    }
+
+    addToast('Unrecognized JSON backup format', 'error');
   };
 
-  const handleImportEntries = async (importedPasswords: PasswordEntry[], importedBookmarks?: Bookmark[]) => {
-    if (importedPasswords.length > 0) {
-      const merged = [...importedPasswords, ...decryptedPasswords];
-      await saveAndEncryptPasswords(merged);
+  const performRestore = async (data: any, password: string) => {
+    if (data.settings) {
+      setSettingsState(data.settings);
+      await saveSettings(data.settings);
     }
-    if (importedBookmarks && importedBookmarks.length > 0) {
-      const mergedBm = [...importedBookmarks, ...bookmarks];
-      setBookmarks(mergedBm);
-      await saveAllBookmarks(mergedBm);
+
+    if (data.categories) {
+      setCategories(data.categories);
+      await saveAllCategories(data.categories);
+    }
+
+    if (data.bookmarks) {
+      setBookmarks(data.bookmarks);
+      await saveAllBookmarks(data.bookmarks);
+    }
+
+    if (data.files) {
+      await saveAllEncryptedFiles(data.files);
+    } else {
+      await saveAllEncryptedFiles([]);
+    }
+
+    if (data.passwords) {
+      setDecryptedPasswords(data.passwords);
+      setMasterPasswordMem(password);
+      setIsUnlocked(true);
+
+      const { cipherText, iv, salt } = await encryptVaultData(
+        data.passwords,
+        password
+      );
+      const verifier = await createPasswordVerifier(password, salt);
+
+      const updatedMeta: VaultMetadata = {
+        isInitialized: true,
+        salt,
+        verifier,
+        encryptedVault: {
+          cipherText,
+          iv,
+          salt,
+          version: 1,
+          updatedAt: Date.now(),
+        },
+      };
+
+      await saveVaultMeta(updatedMeta);
+      setVaultMeta(updatedMeta);
     }
   };
 
@@ -680,11 +882,11 @@ export default function App() {
 
           {currentView === 'import-export' && (
             <ImportExportView
-              passwords={decryptedPasswords}
-              bookmarks={bookmarks}
               isUnlocked={isUnlocked}
               onUnlockVaultClick={() => setIsMasterPasswordModalOpen(true)}
-              onImportEntries={handleImportEntries}
+              onImportFile={handleImportFile}
+              onExportJSON={handleExportJSON}
+              onExportCSV={handleExportCSV}
               addToast={addToast}
             />
           )}
@@ -733,10 +935,9 @@ export default function App() {
             <SettingsView
               settings={settings}
               onUpdateSettings={handleUpdateSettings}
-              onExportEncryptedVault={handleExportBackup}
+              onExportJSON={handleExportJSON}
               onExportCSV={handleExportCSV}
-              onImportEncryptedVault={handleImportBackup}
-              onImportCSV={handleImportCSV}
+              onImportFile={handleImportFile}
               onResetVault={handleResetVault}
               isUnlocked={isUnlocked}
               onOpenExtensionGuide={() => setIsExtensionGuideOpen(true)}
@@ -774,6 +975,20 @@ export default function App() {
         isInitialSetup={!vaultMeta || !vaultMeta.isInitialized}
         onClose={vaultMeta?.isInitialized ? () => setIsMasterPasswordModalOpen(false) : undefined}
         onSubmitPassword={handleMasterPasswordSubmit}
+      />
+
+      <BackupPasswordModal
+        isOpen={backupFileToDecrypt !== null}
+        onClose={() => {
+          setBackupFileToDecrypt(null);
+          setBackupPasswordError(null);
+        }}
+        onSubmit={async (pw) => {
+          if (backupFileToDecrypt) {
+            await handleImportJSONContent(backupFileToDecrypt, pw);
+          }
+        }}
+        error={backupPasswordError}
       />
 
       <BookmarkModal

@@ -9,16 +9,16 @@ import {
   CheckCircle2,
   Lock,
   Puzzle,
+  FileJson,
 } from 'lucide-react';
 import { VaultSettings } from '../types';
 
 interface SettingsViewProps {
   settings: VaultSettings;
   onUpdateSettings: (newSettings: VaultSettings) => void;
-  onExportEncryptedVault: () => void;
+  onExportJSON: (encrypted: boolean) => void;
   onExportCSV: () => void;
-  onImportEncryptedVault: (file: File) => void;
-  onImportCSV: (file: File) => void;
+  onImportFile: (file: File) => void;
   onResetVault: () => void;
   isUnlocked: boolean;
   onOpenExtensionGuide: () => void;
@@ -27,10 +27,9 @@ interface SettingsViewProps {
 export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onUpdateSettings,
-  onExportEncryptedVault,
+  onExportJSON,
   onExportCSV,
-  onImportEncryptedVault,
-  onImportCSV,
+  onImportFile,
   onResetVault,
   isUnlocked,
   onOpenExtensionGuide,
@@ -54,12 +53,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.name.endsWith('.csv')) {
-      onImportCSV(file);
-    } else {
-      onImportEncryptedVault(file);
-    }
+    onImportFile(file);
+    e.target.value = '';
   };
 
   return (
@@ -147,21 +142,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-card-foreground">Encrypted Vault Backup & Migration</h3>
-            <p className="text-[11px] text-muted-foreground">Export or import your vault in Encrypted JSON or CSV format</p>
+            <p className="text-[11px] text-muted-foreground">Export or import your vault in Encrypted JSON, Unencrypted JSON, or CSV format</p>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Backups exported in JSON format are fully encrypted using AES-GCM 256-bit encryption. You can also export/import plain CSV files (compatible with Bitwarden, Chrome, and 1Password).
+          Backups exported in JSON format can be fully encrypted using AES-GCM 256-bit encryption. You can also export/import unencrypted JSON or plain CSV files (compatible with Bitwarden, Chrome, and 1Password).
         </p>
 
         <div className="flex flex-wrap gap-3 pt-2">
           <button
-            onClick={onExportEncryptedVault}
+            onClick={() => onExportJSON(true)}
             className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export Encrypted Backup (JSON)</span>
+          </button>
+
+          <button
+            onClick={() => onExportJSON(false)}
+            className="px-4 py-2 rounded-lg bg-secondary border border-border text-foreground hover:bg-accent font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            <FileJson className="w-3.5 h-3.5 text-blue-500" />
+            <span>Export Unencrypted Backup (JSON)</span>
           </button>
 
           {isUnlocked && (
@@ -170,7 +173,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               className="px-4 py-2 rounded-lg bg-secondary border border-border text-foreground hover:bg-accent font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-amber-500" />
-              <span>Export Unencrypted CSV</span>
+              <span>Export CSV (Passwords only)</span>
             </button>
           )}
 

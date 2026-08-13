@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   openVaultBtn.addEventListener('click', () => {
     // Open Xerox Web Vault in new tab
-    chrome.tabs.create({ url: 'http://localhost:3000' });
+    chrome.tabs.create({ url: 'http://localhost:3001' });
   });
 
   function loadMatchingCredentials() {

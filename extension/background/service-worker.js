@@ -3,18 +3,35 @@
  * Manages active session lock state and responds to popup & content script messages securely.
  */
 
-import { extractDomain, isSafeDomainMatch, filterMatchingCredentials } from '../vault/credential-matcher.js';
+import { extractDomain, filterMatchingCredentials } from '../vault/credential-matcher.js';
 import { decryptVault } from '../vault/secure-storage.js';
 
 let activeDecryptedVault = null; // Stored in-memory while unlocked
 let autoLockTimer = null;
 let autoLockMinutes = 15;
 
+async function getActiveVault() {
+  if (activeDecryptedVault) return activeDecryptedVault;
+  try {
+    if (chrome.storage.session) {
+      const sess = await chrome.storage.session.get(['decryptedVault', 'isUnlocked']);
+      if (sess && sess.isUnlocked && sess.decryptedVault) {
+        activeDecryptedVault = sess.decryptedVault;
+        return activeDecryptedVault;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
 function resetAutoLock() {
   if (autoLockTimer) clearTimeout(autoLockTimer);
-  if (autoLockMinutes > 0 && activeDecryptedVault) {
-    autoLockTimer = setTimeout(() => {
+  if (autoLockMinutes > 0) {
+    autoLockTimer = setTimeout(async () => {
       activeDecryptedVault = null;
+      if (chrome.storage.session) {
+        await chrome.storage.session.remove(['decryptedVault', 'isUnlocked']);
+      }
       chrome.storage.local.set({ isUnlocked: false });
       console.log('[Xerox Background] Auto-locked vault.');
     }, autoLockMinutes * 60 * 1000);
@@ -26,9 +43,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const { action, payload } = request;
 
   if (action === 'GET_LOCK_STATUS') {
-    sendResponse({
-      isUnlocked: !!activeDecryptedVault,
-      hasVaultData: true
+    getActiveVault().then((vault) => {
+      sendResponse({
+        isUnlocked: !!vault,
+        hasVaultData: true
+      });
     });
     return true;
   }
@@ -40,16 +59,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const meta = res.vaultMeta;
         const vault = res.encryptedVault || (meta && meta.encryptedVault);
 
-        if (!vault) {
-          sendResponse({ success: false, error: 'No vault data found in local storage.' });
+        if (!vault || !vault.cipherText) {
+          sendResponse({
+            success: false,
+            error: 'Vault data not synced yet.\n\nPlease open your Xerox Web Vault tab once to sync your vault.'
+          });
           return;
         }
 
-        const decrypted = await decryptVault(vault.cipherText, vault.iv, vault.salt, masterPassword);
+        let decrypted = null;
+        let lastError = null;
+        const saltToUse = vault.salt || (meta && meta.salt);
+
+        try {
+          decrypted = await decryptVault(vault.cipherText, vault.iv, saltToUse, masterPassword);
+        } catch (e) {
+          lastError = e;
+        }
+
+        if (!decrypted && meta && meta.salt && meta.salt !== vault.salt) {
+          try {
+            decrypted = await decryptVault(vault.cipherText, vault.iv, meta.salt, masterPassword);
+          } catch (e) {
+            lastError = e;
+          }
+        }
+
+        if (!decrypted) {
+          throw new Error(lastError?.message || 'Incorrect master password');
+        }
+
         activeDecryptedVault = decrypted;
+        
+        if (chrome.storage.session) {
+          await chrome.storage.session.set({ decryptedVault: decrypted, isUnlocked: true });
+        }
+        chrome.storage.local.set({ isUnlocked: true });
         resetAutoLock();
 
-        chrome.storage.local.set({ isUnlocked: true });
         sendResponse({ success: true, count: decrypted.length });
       } catch (err) {
         sendResponse({ success: false, error: err.message || 'Incorrect master password' });
@@ -61,6 +108,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (action === 'LOCK_VAULT') {
     activeDecryptedVault = null;
     if (autoLockTimer) clearTimeout(autoLockTimer);
+    if (chrome.storage.session) {
+      chrome.storage.session.remove(['decryptedVault', 'isUnlocked']);
+    }
     chrome.storage.local.set({ isUnlocked: false });
     sendResponse({ success: true });
     return true;
@@ -68,53 +118,69 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (action === 'GET_MATCHING_CREDENTIALS') {
     const { url } = payload;
-    if (!activeDecryptedVault) {
-      sendResponse({ isUnlocked: false, matches: [] });
-      return true;
-    }
+    getActiveVault().then((vault) => {
+      if (!vault) {
+        sendResponse({ isUnlocked: false, matches: [] });
+        return;
+      }
 
-    resetAutoLock();
-    const matches = filterMatchingCredentials(url, activeDecryptedVault);
-    sendResponse({
-      isUnlocked: true,
-      domain: extractDomain(url),
-      matches: matches.map(m => ({
-        id: m.id,
-        websiteName: m.websiteName,
-        websiteUrl: m.websiteUrl,
-        username: m.username,
-        // Omit password from initial preview list for privacy
-      }))
+      resetAutoLock();
+      const matches = filterMatchingCredentials(url, vault);
+      sendResponse({
+        isUnlocked: true,
+        domain: extractDomain(url),
+        matches: matches.map(m => ({
+          id: m.id,
+          websiteName: m.websiteName,
+          websiteUrl: m.websiteUrl,
+          username: m.username,
+        }))
+      });
     });
     return true;
   }
 
   if (action === 'AUTHORIZE_AUTOFILL') {
     const { id, url } = payload;
-    if (!activeDecryptedVault) {
-      sendResponse({ success: false, error: 'Vault is locked.' });
-      return true;
-    }
-
-    resetAutoLock();
-    const item = activeDecryptedVault.find(c => c.id === id);
-    if (!item) {
-      sendResponse({ success: false, error: 'Credential not found.' });
-      return true;
-    }
-
-    // Verify safe domain match before returning secret credential
-    if (!isSafeDomainMatch(url, item.websiteUrl || item.url)) {
-      sendResponse({ success: false, error: 'Domain mismatch security violation.' });
-      return true;
-    }
-
-    sendResponse({
-      success: true,
-      credential: {
-        username: item.username,
-        password: item.password
+    getActiveVault().then((vault) => {
+      if (!vault) {
+        sendResponse({ success: false, error: 'Vault is locked. Please unlock via extension.' });
+        return;
       }
+
+      resetAutoLock();
+      const item = vault.find(c => c.id === id);
+      if (!item) {
+        sendResponse({ success: false, error: 'Credential not found in vault.' });
+        return;
+      }
+
+      sendResponse({
+        success: true,
+        credential: {
+          username: item.username || item.email || '',
+          password: item.password || ''
+        }
+      });
+    });
+    return true;
+  }
+
+  if (action === 'GET_ALL_CREDENTIALS_SUMMARY') {
+    getActiveVault().then((vault) => {
+      if (!vault) {
+        sendResponse({ isUnlocked: false, credentials: [] });
+        return;
+      }
+      sendResponse({
+        isUnlocked: true,
+        credentials: vault.map(m => ({
+          id: m.id,
+          websiteName: m.websiteName || m.title || extractDomain(m.websiteUrl) || 'Untitled',
+          websiteUrl: m.websiteUrl || m.url || '',
+          username: m.username || m.email || '',
+        }))
+      });
     });
     return true;
   }

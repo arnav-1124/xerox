@@ -243,6 +243,18 @@ export async function deleteEncryptedFileDB(id: string): Promise<void> {
   });
 }
 
+export async function saveAllEncryptedFiles(files: EncryptedFile[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('encrypted_files', 'readwrite');
+  const store = tx.objectStore('encrypted_files');
+  store.clear();
+  files.forEach((f) => store.put(f));
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function resetDatabase(): Promise<void> {
   const db = await getDB();
   const stores = ['bookmarks', 'categories', 'vault_meta', 'settings', 'encrypted_files'];
