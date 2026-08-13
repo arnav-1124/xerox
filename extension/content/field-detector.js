@@ -5,7 +5,29 @@
 (function () {
   window.XeroxFieldDetector = {
     findLoginFields() {
-      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="image"])'));
+      function getInputsRecursive(root) {
+        let inputs = [];
+        if (!root) return inputs;
+        try {
+          const directInputs = Array.from(
+            root.querySelectorAll(
+              'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="image"])'
+            )
+          );
+          inputs.push(...directInputs);
+        } catch (e) {}
+        try {
+          const allElements = Array.from(root.querySelectorAll('*'));
+          for (const el of allElements) {
+            if (el.shadowRoot) {
+              inputs.push(...getInputsRecursive(el.shadowRoot));
+            }
+          }
+        } catch (e) {}
+        return inputs;
+      }
+
+      const allInputs = getInputsRecursive(document);
       const visibleInputs = allInputs.filter(i => {
         const style = window.getComputedStyle(i);
         const rect = i.getBoundingClientRect();

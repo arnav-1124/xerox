@@ -85,8 +85,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   openVaultBtn.addEventListener('click', () => {
-    // Open Xerox Web Vault in new tab
-    chrome.tabs.create({ url: 'http://localhost:3001' });
+    // Open Xerox Web Vault in tab
+    chrome.tabs.query({ url: ['*://localhost/*', '*://127.0.0.1/*', '*://*.vercel.app/*'] }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        chrome.tabs.update(tabs[0].id, { active: true });
+      } else {
+        chrome.tabs.create({ url: 'http://localhost:5173' });
+      }
+    });
   });
 
   function loadMatchingCredentials() {

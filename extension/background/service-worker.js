@@ -38,6 +38,38 @@ function resetAutoLock() {
   }
 }
 
+async function autoSyncFromWebAppTabs() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (!tab.url) continue;
+      if (tab.url.includes('localhost') || tab.url.includes('127.0.0.1') || tab.url.includes('xerox')) {
+        try {
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              try {
+                return localStorage.getItem('xerox_vault_meta_sync');
+              } catch (e) {
+                return null;
+              }
+            }
+          });
+          if (results && results[0] && results[0].result) {
+            const meta = JSON.parse(results[0].result);
+            if (meta && meta.encryptedVault) {
+              await chrome.storage.local.set({ vaultMeta: meta, encryptedVault: meta.encryptedVault });
+              console.log('[Xerox Background] Auto-synced vault payload from tab:', tab.url);
+              return true;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
 // Service worker listeners
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const { action, payload } = request;
@@ -56,8 +88,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const { masterPassword } = payload;
     chrome.storage.local.get(['vaultMeta', 'encryptedVault'], async (res) => {
       try {
-        const meta = res.vaultMeta;
-        const vault = res.encryptedVault || (meta && meta.encryptedVault);
+        let meta = res.vaultMeta;
+        let vault = res.encryptedVault || (meta && meta.encryptedVault);
+
+        if (!vault || !vault.cipherText) {
+          await autoSyncFromWebAppTabs();
+          const refreshed = await new Promise((resolve) =>
+            chrome.storage.local.get(['vaultMeta', 'encryptedVault'], resolve)
+          );
+          meta = refreshed.vaultMeta;
+          vault = refreshed.encryptedVault || (meta && meta.encryptedVault);
+        }
 
         if (!vault || !vault.cipherText) {
           sendResponse({

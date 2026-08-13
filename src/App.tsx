@@ -659,27 +659,77 @@ export default function App() {
   };
 
   const handleImportCSVContent = async (text: string) => {
+    // Custom RFC 4180 CSV line parser supporting embedded commas & escaped quotes
+    const parseCSVRow = (row: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        if (char === '"') {
+          if (inQuotes && row[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
     try {
+      // Split by line endings (ignoring trailing blank lines)
       const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
       if (lines.length < 2) {
         addToast('CSV file appears empty or invalid', 'error');
         return;
       }
 
-      // Parse Header
-      const headerCols = lines[0].split(',').map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
-      const titleIdx = headerCols.findIndex((h) => h.includes('title') || h.includes('name'));
-      const urlIdx = headerCols.findIndex((h) => h.includes('url') || h.includes('website'));
-      const userIdx = headerCols.findIndex((h) => h.includes('user') || h.includes('login') || h.includes('email'));
-      const passIdx = headerCols.findIndex((h) => h.includes('pass') || h.includes('secret'));
-      const notesIdx = headerCols.findIndex((h) => h.includes('note') || h.includes('comment'));
-      const catIdx = headerCols.findIndex((h) => h.includes('cat') || h.includes('folder'));
+      // Parse Header columns and clean quotes
+      const headerCols = parseCSVRow(lines[0]).map((h) => h.toLowerCase());
+
+      // Explicit index lookups with fallback checks to prevent overlaps (e.g. name matching username)
+      const titleIdx = headerCols.findIndex(
+        (h) =>
+          ['name', 'title', 'website name', 'label'].includes(h) ||
+          (h.includes('name') && h !== 'username' && h !== 'login name')
+      );
+      const urlIdx = headerCols.findIndex(
+        (h) => ['url', 'website', 'website url', 'link', 'address'].includes(h) || h.includes('url')
+      );
+      const userIdx = headerCols.findIndex(
+        (h) =>
+          ['username', 'login', 'email', 'user', 'login username', 'username value'].includes(h) ||
+          h.includes('user') ||
+          h.includes('email') ||
+          h.includes('login')
+      );
+      const passIdx = headerCols.findIndex(
+        (h) =>
+          ['password', 'pass', 'secret', 'secret key', 'password value'].includes(h) ||
+          h.includes('pass') ||
+          h.includes('secret')
+      );
+      const notesIdx = headerCols.findIndex(
+        (h) => ['note', 'notes', 'comment', 'description'].includes(h) || h.includes('note') || h.includes('comment')
+      );
+      const catIdx = headerCols.findIndex(
+        (h) => ['cat', 'folder', 'category'].includes(h) || h.includes('cat') || h.includes('folder') || h.includes('category')
+      );
 
       const newEntries: PasswordEntry[] = [];
       for (let i = 1; i < lines.length; i++) {
         const rawRow = lines[i];
-        const cols = rawRow.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rawRow.split(',');
-        const cleanCols = cols.map((c) => c.replace(/^"|"$/g, '').trim());
+        if (!rawRow.trim()) continue;
+        
+        const cleanCols = parseCSVRow(rawRow);
 
         const title = (titleIdx >= 0 && cleanCols[titleIdx]) || cleanCols[0] || 'Imported Entry';
         const websiteUrl = (urlIdx >= 0 && cleanCols[urlIdx]) || '';

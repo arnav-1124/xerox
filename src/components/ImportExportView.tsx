@@ -92,9 +92,26 @@ export const ImportExportView: React.FC<ImportExportViewProps> = ({
             <div className="p-3 bg-muted/50 rounded-xl border border-border text-xs space-y-1">
               <span className="font-semibold text-foreground block">Supported Formats:</span>
               <ul className="text-[11px] text-muted-foreground list-disc list-inside space-y-0.5">
-                <li>Chrome / Bitwarden / 1Password CSV Files</li>
+                <li>Chrome / Brave / Edge / Opera (Chromium) CSV Files</li>
+                <li>Bitwarden / 1Password CSV Files</li>
                 <li>Xerox Vault Native JSON Backups (Encrypted or Unencrypted)</li>
               </ul>
+            </div>
+
+            <div className="pt-2 border-t border-border/50">
+              <details className="group text-xs text-muted-foreground">
+                <summary className="cursor-pointer hover:text-foreground transition-colors font-medium flex items-center gap-1 select-none outline-none">
+                  <span>How to export from Chrome or Brave?</span>
+                  <span className="text-[10px] opacity-60 group-open:rotate-185 transition-transform duration-200">▼</span>
+                </summary>
+                <ol className="mt-2 pl-4 list-decimal space-y-1.5 text-[11px] leading-relaxed text-muted-foreground/90">
+                  <li>Open <strong>Chrome</strong> or <strong>Brave</strong> settings.</li>
+                  <li>Go to <strong>Autofill and passwords</strong> &rarr; <strong>Password Manager</strong>.</li>
+                  <li>Click <strong>Settings</strong> in the left-hand sidebar menu.</li>
+                  <li>Scroll down to the <strong>Export passwords</strong> section and click <strong>Download file</strong>.</li>
+                  <li>Select the saved <code>.csv</code> file here to bulk import all credentials into Xerox!</li>
+                </ol>
+              </details>
             </div>
           </div>
 

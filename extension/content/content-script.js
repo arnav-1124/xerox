@@ -1,5 +1,6 @@
 (function () {
   let fields = null;
+  let focusTimeout = null;
 
   function checkAndSyncWebVault() {
     try {
@@ -25,17 +26,31 @@
     }
   }
 
+  function handleFocusIn(e) {
+    const target = e.composedPath()[0] || e.target;
+    if (!target || target.tagName !== 'INPUT') return;
+
+    const liveFields = window.XeroxFieldDetector.findLoginFields();
+    if (liveFields && (liveFields.passwordInput || liveFields.usernameInput)) {
+      fields = liveFields;
+      if (target === liveFields.passwordInput || target === liveFields.usernameInput) {
+        if (focusTimeout) clearTimeout(focusTimeout);
+        setupBadge(liveFields, target);
+      }
+    }
+  }
+
+  function handleFocusOut() {
+    focusTimeout = setTimeout(() => {
+      window.XeroxAutofill.hideBadge();
+    }, 250);
+  }
+
   function initDetector() {
     checkAndSyncWebVault();
 
-    fields = window.XeroxFieldDetector.findLoginFields();
-    if (fields && fields.targetInput) { setupBadge(fields); }
-    else {
-      window.XeroxFieldDetector.observeDynamicForms((newFields) => {
-        fields = newFields;
-        if (fields && fields.targetInput) setupBadge(fields);
-      });
-    }
+    document.addEventListener('focusin', handleFocusIn, true);
+    document.addEventListener('focusout', handleFocusOut, true);
   }
 
   window.addEventListener('message', (event) => {
@@ -71,8 +86,8 @@
     return true;
   });
 
-  function setupBadge(loginFields) {
-    const target = loginFields.passwordInput || loginFields.usernameInput || loginFields.targetInput;
+  function setupBadge(loginFields, focusTarget) {
+    const target = focusTarget || loginFields.passwordInput || loginFields.usernameInput || loginFields.targetInput;
     window.XeroxAutofill.attachAutofillBadge(target, () => {
       handleAutofillTrigger(loginFields);
     });
@@ -133,7 +148,8 @@
   }
 
   function showInlineUnlockModal(onSubmit) {
-    const existing = document.getElementById('xerox-inline-unlock-modal');
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-inline-unlock-modal');
     if (existing) existing.remove();
 
     const overlay = document.createElement('div');
@@ -160,32 +176,34 @@
     `;
 
     overlay.appendChild(box);
-    (document.body || document.documentElement).appendChild(overlay);
+    shadow.appendChild(overlay);
 
-    const closeBtn = document.getElementById('xerox-unlock-close');
+    const closeBtn = shadow.getElementById('xerox-unlock-close');
     if (closeBtn) closeBtn.onclick = () => overlay.remove();
 
-    const form = document.getElementById('xerox-inline-unlock-form');
-    const input = document.getElementById('xerox-inline-master-pass');
-    const errDiv = document.getElementById('xerox-inline-error');
+    const form = shadow.getElementById('xerox-inline-unlock-form');
+    const input = shadow.getElementById('xerox-inline-master-pass');
+    const errDiv = shadow.getElementById('xerox-inline-error');
 
-    setTimeout(() => input.focus(), 50);
+    setTimeout(() => { if (input) input.focus(); }, 50);
 
     form.onsubmit = (e) => {
       e.preventDefault();
       const pwd = input.value;
       if (!pwd) return;
-      errDiv.style.display = 'none';
+      if (errDiv) errDiv.style.display = 'none';
       onSubmit(pwd, (errMsg) => {
-        errDiv.textContent = errMsg;
-        errDiv.style.display = 'block';
+        if (errDiv) {
+          errDiv.textContent = errMsg;
+          errDiv.style.display = 'block';
+        }
       });
-      overlay.remove();
     };
   }
 
   function showAccountPickerModal(matches, onSelect, isAllFallback = false) {
-    const existing = document.getElementById('xerox-account-picker');
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-account-picker');
     if (existing) existing.remove();
 
     const overlay = document.createElement('div');
@@ -210,7 +228,7 @@
 
     matches.forEach(m => {
       html += `
-        <button class="xerox-picker-item" data-id="${m.id}" data-search="${(m.websiteName + ' ' + m.username + ' ' + (m.websiteUrl||'')).toLowerCase()}" style="background:#1f2937;border:1px solid #374151;border-radius:8px;padding:10px 12px;text-align:left;color:#fff;cursor:pointer;font-size:13px;display:flex;flex-direction:column;transition:background 0.15s, border-color 0.15s;">
+        <button class="xerox-picker-item" data-id="${m.id}" data-search="${(m.websiteName + ' ' + m.username + ' ' + (m.websiteUrl||'')).toLowerCase()}" style="background:#1f2937;border:1px solid #374151;border-radius:8px;padding:10px 12px;text-align:left;color:#fff;cursor:pointer;font-size:13px;display:flex;flex-direction:column;transition:background 0.15s, border-color 0.15s;width:100%;">
           <span style="font-weight:600;color:#f3f4f6;">${m.websiteName}</span>
           <span style="font-size:11px;color:#9ca3af;margin-top:2px;">${m.username || 'No username'}</span>
         </button>
@@ -220,26 +238,29 @@
     html += '</div>';
     box.innerHTML = html;
     overlay.appendChild(box);
-    (document.body || document.documentElement).appendChild(overlay);
+    shadow.appendChild(overlay);
 
-    document.getElementById('xerox-picker-close').onclick = () => overlay.remove();
+    const closeBtn = shadow.getElementById('xerox-picker-close');
+    if (closeBtn) closeBtn.onclick = () => overlay.remove();
 
-    const searchInput = document.getElementById('xerox-picker-search');
+    const searchInput = shadow.getElementById('xerox-picker-search');
     const items = box.querySelectorAll('.xerox-picker-item');
 
-    if (items.length > 5) { searchInput.focus(); }
+    if (items.length > 5 && searchInput) { searchInput.focus(); }
 
-    searchInput.oninput = () => {
-      const query = searchInput.value.toLowerCase().trim();
-      items.forEach(item => {
-        const text = item.dataset.search || '';
-        if (!query || text.includes(query)) {
-          item.style.display = 'flex';
-        } else {
-          item.style.display = 'none';
-        }
-      });
-    };
+    if (searchInput) {
+      searchInput.oninput = () => {
+        const query = searchInput.value.toLowerCase().trim();
+        items.forEach(item => {
+          const text = item.dataset.search || '';
+          if (!query || text.includes(query)) {
+            item.style.display = 'flex';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      };
+    }
 
     items.forEach(btn => {
       btn.onclick = () => {
@@ -250,7 +271,8 @@
   }
 
   function showNoticeModal(title, message) {
-    const existing = document.getElementById('xerox-notice-modal');
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-notice-modal');
     if (existing) existing.remove();
 
     const overlay = document.createElement('div');
@@ -270,17 +292,21 @@
     `;
 
     overlay.appendChild(box);
-    (document.body || document.documentElement).appendChild(overlay);
+    shadow.appendChild(overlay);
 
-    document.getElementById('xerox-notice-close').onclick = () => overlay.remove();
-    document.getElementById('xerox-notice-ok').onclick = () => overlay.remove();
+    const closeBtn = shadow.getElementById('xerox-notice-close');
+    if (closeBtn) closeBtn.onclick = () => overlay.remove();
+    
+    const okBtn = shadow.getElementById('xerox-notice-ok');
+    if (okBtn) okBtn.onclick = () => overlay.remove();
   }
 
   function showBriefToast(text) {
+    const shadow = window.XeroxAutofill.getShadowRoot();
     const toast = document.createElement('div');
     toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;border:1.5px solid #3b82f6;color:#38bdf8;padding:10px 16px;border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;z-index:2147483647;box-shadow:0 10px 25px rgba(0,0,0,0.7);transition:opacity 0.3s;';
     toast.textContent = text;
-    (document.body || document.documentElement).appendChild(toast);
+    shadow.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);

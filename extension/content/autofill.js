@@ -4,6 +4,17 @@
 
 (function () {
   window.XeroxAutofill = {
+    getShadowRoot() {
+      let container = document.getElementById('xerox-shadow-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'xerox-shadow-container';
+        container.style.cssText = 'position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647;';
+        const shadowRoot = container.attachShadow({ mode: 'open' });
+        (document.body || document.documentElement).appendChild(container);
+      }
+      return container.shadowRoot;
+    },
     fillCredentials(usernameInput, passwordInput, credential) {
       if (!credential) return;
       if (usernameInput && credential.username) this.setInputValue(usernameInput, credential.username);
@@ -23,10 +34,13 @@
           inputElement.value = value;
         }
 
-        inputElement.dispatchEvent(new Event('keydown', { bubbles: true, composed: true }));
-        inputElement.dispatchEvent(new Event('keypress', { bubbles: true, composed: true }));
-        inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-        inputElement.dispatchEvent(new Event('keyup', { bubbles: true, composed: true }));
+        // Standard framework change triggers simulating physical hardware events
+        inputElement.dispatchEvent(new Event('focus', { bubbles: true, composed: true }));
+        try {
+          inputElement.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: value }));
+        } catch (e) {
+          inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        }
         inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
       } catch (e) {
@@ -84,10 +98,33 @@
       element.addEventListener('mousedown', onMouseDown);
     },
     attachAutofillBadge(targetInput, onBadgeClick) {
-      if (document.getElementById('xerox-floating-badge')) return;
-      if (!targetInput) return;
+      const shadow = this.getShadowRoot();
+      let wrapper = shadow.getElementById('xerox-floating-badge');
+      if (wrapper) {
+        const btn = wrapper.querySelector('.xerox-autofill-btn');
+        if (btn) {
+          const newBtn = btn.cloneNode(true);
+          btn.parentNode.replaceChild(newBtn, btn);
+          newBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onBadgeClick();
+          });
+        }
+        wrapper.style.display = 'flex';
+        
+        // Re-align to targetInput
+        const rect = targetInput.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
+          const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + (rect.height / 2) - 15));
+          wrapper.style.left = left + 'px';
+          wrapper.style.top = top + 'px';
+        }
+        return;
+      }
 
-      const wrapper = document.createElement('div');
+      wrapper = document.createElement('div');
       wrapper.id = 'xerox-floating-badge';
       wrapper.style.cssText = `
         position: fixed;
@@ -136,8 +173,7 @@
       window.addEventListener('scroll', updatePosition, { passive: true });
       window.addEventListener('resize', updatePosition, { passive: true });
 
-      (document.body || document.documentElement).appendChild(wrapper);
-
+      shadow.appendChild(wrapper);
       this.makeDraggable(wrapper);
 
       const btn = wrapper.querySelector('.xerox-autofill-btn');
@@ -158,6 +194,15 @@
           onBadgeClick();
         }
       });
+    },
+    hideBadge() {
+      const container = document.getElementById('xerox-shadow-container');
+      if (container && container.shadowRoot) {
+        const badge = container.shadowRoot.getElementById('xerox-floating-badge');
+        if (badge) {
+          badge.style.display = 'none';
+        }
+      }
     }
   };
 })();
