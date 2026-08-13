@@ -503,6 +503,46 @@ export const FeatureGuideView: React.FC<FeatureGuideViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Section 9: Vercel Health & Cron Keep-Alive */}
+      <div id="health-cron" className="bg-card border border-border rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <Zap className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">Server & Deployment</div>
+            <h2 className="text-2xl font-bold text-foreground">Vercel Health & Cron Keep-Alive Routes</h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Active API endpoints configured to keep your serverless instances warm and responsive.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          <div className="space-y-3 bg-secondary/30 p-5 rounded-2xl border border-border">
+            <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              Available Endpoints
+            </h3>
+            <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside leading-relaxed">
+              <li><code className="text-foreground bg-background px-1.5 py-0.5 rounded border border-border">/api/health</code>: Returns server uptime, status timestamp, and service info.</li>
+              <li><code className="text-foreground bg-background px-1.5 py-0.5 rounded border border-border">/api/ping</code>: Lightweight ping check returning pong status.</li>
+            </ul>
+          </div>
+
+          <div className="space-y-3 bg-secondary/30 p-5 rounded-2xl border border-border">
+            <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+              <Zap className="w-4 h-4 text-indigo-500" />
+              How to Start a Cron Job
+            </h3>
+            <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside leading-relaxed">
+              <li><span className="font-semibold text-foreground">Vercel Cron:</span> Automatically configured in <code className="text-foreground bg-background px-1 py-0.5 rounded border border-border">vercel.json</code> to ping <code className="text-foreground">/api/health</code> every 10 minutes.</li>
+              <li><span className="font-semibold text-foreground">External Cron (GitHub Actions, UptimeRobot, etc.):</span> Set up a scheduled task to send a GET request to your deployed app URL: <code className="text-foreground bg-background px-1 py-0.5 rounded border border-border">https://your-app.vercel.app/api/health</code>.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
