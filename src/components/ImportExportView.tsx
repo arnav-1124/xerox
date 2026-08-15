@@ -10,8 +10,11 @@ import {
   Lock,
   ArrowRight,
   Database,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
-import { PasswordEntry, Bookmark } from '../types';
+import { uploadVaultToGoogleDrive, downloadVaultFromGoogleDrive } from '../lib/googleDriveSync';
+import { getVaultMeta } from '../lib/db';
 
 interface ImportExportViewProps {
   isUnlocked: boolean;
@@ -30,12 +33,64 @@ export const ImportExportView: React.FC<ImportExportViewProps> = ({
   onExportCSV,
   addToast,
 }) => {
+  const [driveToken, setDriveToken] = useState(() => localStorage.getItem('xerox_gdrive_token') || '');
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(() => localStorage.getItem('xerox_gdrive_last_sync'));
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     onImportFile(file);
-    // Reset file input value so same file can be selected again
     e.target.value = '';
+  };
+
+  const handleGoogleDriveBackup = async () => {
+    if (!driveToken.trim()) {
+      addToast('Please enter your Google OAuth Access Token', 'error');
+      return;
+    }
+    setDriveLoading(true);
+    try {
+      const meta = await getVaultMeta();
+      if (!meta || !meta.encryptedVault) {
+        throw new Error('No encrypted vault payload found to backup.');
+      }
+
+      const res = await uploadVaultToGoogleDrive(driveToken.trim(), meta.encryptedVault);
+      localStorage.setItem('xerox_gdrive_token', driveToken.trim());
+      const nowStr = new Date().toLocaleTimeString();
+      localStorage.setItem('xerox_gdrive_last_sync', nowStr);
+      setLastSyncTime(nowStr);
+      addToast('Successfully synced encrypted vault to Google Drive!', 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Google Drive sync failed', 'error');
+    } finally {
+      setDriveLoading(false);
+    }
+  };
+
+  const handleGoogleDriveRestore = async () => {
+    if (!driveToken.trim()) {
+      addToast('Please enter your Google OAuth Access Token', 'error');
+      return;
+    }
+    setDriveLoading(true);
+    try {
+      const res = await downloadVaultFromGoogleDrive(driveToken.trim());
+      if (res && res.encryptedVault) {
+        const file = new File(
+          [JSON.stringify(res.encryptedVault, null, 2)],
+          'xerox_gdrive_backup.json',
+          { type: 'application/json' }
+        );
+        onImportFile(file);
+        addToast('Downloaded encrypted backup from Google Drive! Processing restore...', 'success');
+      }
+    } catch (err: any) {
+      addToast(err.message || 'Google Drive restore failed', 'error');
+    } finally {
+      setDriveLoading(false);
+    }
   };
 
   if (!isUnlocked) {
@@ -71,8 +126,56 @@ export const ImportExportView: React.FC<ImportExportViewProps> = ({
         </div>
         <h2 className="text-xl font-bold">Import & Export Credentials</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Seamlessly backup your zero-knowledge vault or migrate passwords from Chrome, Bitwarden, 1Password, or LastPass.
+          Seamlessly backup your zero-knowledge vault or migrate passwords from Chrome, Bitwarden, 1Password, or Google Drive.
         </p>
+      </div>
+
+      {/* Cloud Sync Section */}
+      <div className="p-6 rounded-2xl bg-card border border-border shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-500 flex items-center justify-center">
+              <Cloud className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold">Zero-Knowledge Google Drive Cloud Sync</h3>
+              <p className="text-xs text-muted-foreground">Sync encrypted vault payload directly to your private Google Drive</p>
+            </div>
+          </div>
+          {lastSyncTime && (
+            <span className="text-[11px] text-muted-foreground bg-muted px-3 py-1 rounded-full border border-border">
+              Last synced: {lastSyncTime}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <input
+            type="password"
+            placeholder="Enter Google Drive OAuth Access Token..."
+            value={driveToken}
+            onChange={(e) => setDriveToken(e.target.value)}
+            className="flex-1 px-3.5 py-2 rounded-xl bg-muted border border-border text-xs outline-none focus:border-ring font-mono"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleGoogleDriveBackup}
+              disabled={driveLoading}
+              className="py-2 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{driveLoading ? 'Syncing...' : 'Backup to Drive'}</span>
+            </button>
+            <button
+              onClick={handleGoogleDriveRestore}
+              disabled={driveLoading}
+              className="py-2 px-4 rounded-xl bg-muted hover:bg-muted/80 border border-border text-foreground text-xs font-semibold transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>Restore from Drive</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -97,36 +200,13 @@ export const ImportExportView: React.FC<ImportExportViewProps> = ({
                 <li>Xerox Vault Native JSON Backups (Encrypted or Unencrypted)</li>
               </ul>
             </div>
-
-            <div className="pt-2 border-t border-border/50">
-              <details className="group text-xs text-muted-foreground">
-                <summary className="cursor-pointer hover:text-foreground transition-colors font-medium flex items-center gap-1 select-none outline-none">
-                  <span>How to export from Chrome or Brave?</span>
-                  <span className="text-[10px] opacity-60 group-open:rotate-185 transition-transform duration-200">▼</span>
-                </summary>
-                <ol className="mt-2 pl-4 list-decimal space-y-1.5 text-[11px] leading-relaxed text-muted-foreground/90">
-                  <li>Open <strong>Chrome</strong> or <strong>Brave</strong> settings.</li>
-                  <li>Go to <strong>Autofill and passwords</strong> &rarr; <strong>Password Manager</strong>.</li>
-                  <li>Click <strong>Settings</strong> in the left-hand sidebar menu.</li>
-                  <li>Scroll down to the <strong>Export passwords</strong> section and click <strong>Download file</strong>.</li>
-                  <li>Select the saved <code>.csv</code> file here to bulk import all credentials into Xerox!</li>
-                </ol>
-              </details>
-            </div>
           </div>
 
-          <div>
-            <label className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-              <Upload className="w-4 h-4" />
-              <span>Select File to Import (CSV or JSON)</span>
-              <input
-                type="file"
-                accept=".csv, .json"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </label>
-          </div>
+          <label className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-blue-500/10">
+            <Upload className="w-4 h-4" />
+            <span>Select File to Import</span>
+            <input type="file" accept=".csv,.json" onChange={handleFileUpload} className="hidden" />
+          </label>
         </div>
 
         {/* Export Box */}
@@ -136,45 +216,34 @@ export const ImportExportView: React.FC<ImportExportViewProps> = ({
               <Download className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold">Export Vault Backup</h3>
+              <h3 className="text-base font-bold">Export Vault Backups</h3>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Download a local backup copy of your entire password vault, bookmarks, categories, files, and settings.
-              </p>
-            </div>
-
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-xs space-y-1">
-              <span className="font-bold flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" /> Security Warning:
-              </span>
-              <p className="text-[11px] leading-relaxed">
-                Unencrypted backups contain plain-text passwords and sensitive data. Store them in a secure offline drive.
+                Download your local vault entries. We recommend the <strong>Encrypted JSON</strong> format for secure backups.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="space-y-2">
             <button
               onClick={() => onExportJSON(true)}
-              className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all flex items-center justify-between cursor-pointer shadow-sm shadow-emerald-500/10"
             >
-              <Lock className="w-4 h-4" />
-              <span>Export Encrypted Backup (JSON)</span>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Export Encrypted JSON (Recommended)</span>
+              </div>
+              <Download className="w-4 h-4 opacity-80" />
             </button>
 
             <button
-              onClick={() => onExportJSON(false)}
-              className="py-2.5 px-4 rounded-xl bg-secondary border border-border hover:bg-accent text-secondary-foreground font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+              onClick={() => onExportCSV()}
+              className="w-full py-2 px-4 rounded-xl bg-muted hover:bg-muted/80 text-foreground font-medium text-xs border border-border transition-all flex items-center justify-between cursor-pointer"
             >
-              <FileJson className="w-4 h-4 text-blue-500" />
-              <span>Export Unencrypted Backup (JSON)</span>
-            </button>
-
-            <button
-              onClick={onExportCSV}
-              className="py-2.5 px-4 rounded-xl bg-secondary border border-border hover:bg-accent text-secondary-foreground font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-              <span>Export Passwords only (CSV)</span>
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                <span>Export Passwords to CSV</span>
+              </div>
+              <Download className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
         </div>

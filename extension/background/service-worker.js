@@ -6,6 +6,7 @@
 
 import { extractDomain, filterMatchingCredentials, isSafeDomainMatch } from '../vault/credential-matcher.js';
 import { decryptVault } from '../vault/secure-storage.js';
+import { generateTotpCode } from '../vault/totp-generator.js';
 
 const XEROX_DEBUG_AUTOFILL = true;
 
@@ -185,6 +186,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           websiteName: m.websiteName || m.title || extractDomain(m.websiteUrl) || 'Untitled',
           websiteUrl: m.websiteUrl || m.url || '',
           username: m.username || m.email || '',
+          hasTotp: !!m.totpSecret
         }))
       });
     });
@@ -220,12 +222,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return;
       }
 
-      debugLog(`AUTHORIZE_AUTOFILL approved for credential ID "${id}" on origin "${extractDomain(url)}"`);
+      const computedTotp = item.totpSecret ? generateTotpCode(item.totpSecret) : null;
+      debugLog(`AUTHORIZE_AUTOFILL approved for credential ID "${id}" on origin "${extractDomain(url)}". Has TOTP: ${!!computedTotp}`);
+      
       sendResponse({
         success: true,
         credential: {
           username: item.username || item.email || '',
-          password: item.password || ''
+          password: item.password || '',
+          totpSecret: item.totpSecret || '',
+          totpCode: computedTotp
         }
       });
     });
@@ -245,6 +251,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           websiteName: m.websiteName || m.title || extractDomain(m.websiteUrl) || 'Untitled',
           websiteUrl: m.websiteUrl || m.url || '',
           username: m.username || m.email || '',
+          hasTotp: !!m.totpSecret
         }))
       });
     });

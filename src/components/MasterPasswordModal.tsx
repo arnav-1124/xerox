@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, KeyRound, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Lock, KeyRound, ShieldAlert, CheckCircle2, Fingerprint } from 'lucide-react';
+import { isBiometricsConfigured, authenticateBiometrics, isWebAuthnSupported } from '../lib/webauthn';
 
 interface MasterPasswordModalProps {
   isOpen: boolean;
@@ -21,6 +22,11 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
   
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutSecs, setLockoutSecs] = useState(0);
+  const [hasBiometrics, setHasBiometrics] = useState(false);
+
+  useEffect(() => {
+    setHasBiometrics(isBiometricsConfigured());
+  }, [isOpen]);
 
   useEffect(() => {
     if (lockoutSecs <= 0) return;
@@ -31,6 +37,26 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
   }, [lockoutSecs]);
 
   if (!isOpen) return null;
+
+  const handleBiometricUnlock = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const decryptedPwd = await authenticateBiometrics();
+      const success = await onSubmitPassword(decryptedPwd, false);
+      if (!success) {
+        setError('Biometric authentication failed to unlock vault.');
+      } else {
+        setFailedAttempts(0);
+        setLockoutSecs(0);
+        setPassword('');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Biometric authentication was cancelled.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +142,18 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
               If you lose your Master Password, there is no server-side recovery. Keep it safe!
             </div>
           </div>
+        )}
+
+        {!isInitialSetup && hasBiometrics && (
+          <button
+            type="button"
+            onClick={handleBiometricUnlock}
+            disabled={loading}
+            className="w-full mb-4 py-3 px-4 rounded-xl bg-purple-600/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-600/20 font-semibold transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+          >
+            <Fingerprint className="w-5 h-5 text-purple-500" />
+            <span>Unlock with Biometrics (Touch ID / Windows Hello)</span>
+          </button>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">

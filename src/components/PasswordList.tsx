@@ -16,6 +16,7 @@ import {
   FileText,
   Clock,
   ShieldCheck,
+  Tag,
 } from 'lucide-react';
 import { PasswordEntry, Category } from '../types';
 import { getDescendantCategoryIdsAndNames, getCategoryPath } from '../lib/categoryHelper';
@@ -94,23 +95,36 @@ export const PasswordList: React.FC<PasswordListProps> = ({
   categories,
 }) => {
   const [revealedMap, setRevealedMap] = useState<Record<string, boolean>>({});
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const toggleReveal = (id: string) => {
     setRevealedMap((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const targetCategoryObj = categories.find(c => c.id === selectedCategory || c.name === selectedCategory);
-  const { ids: allowedIds, names: allowedNames } = targetCategoryObj 
+  // Collect all unique hashtags (#work, #personal, #banking, etc.) from entries
+  const allTags = Array.from(
+    new Set(
+      passwords.flatMap((p) => {
+        const text = `${p.websiteName} ${p.notes || ''} ${p.category}`;
+        const matches = text.match(/#[a-zA-Z0-9_-]+/g);
+        return matches ? matches.map((t) => t.toLowerCase()) : [];
+      })
+    )
+  );
+
+  const targetCategoryObj = categories.find((c) => c.id === selectedCategory || c.name === selectedCategory);
+  const { ids: allowedIds, names: allowedNames } = targetCategoryObj
     ? getDescendantCategoryIdsAndNames(targetCategoryObj.id, categories)
     : { ids: [], names: [] };
 
-  const selectedCategoryObj = categories.find(c => c.id === selectedCategory || c.name === selectedCategory);
+  const selectedCategoryObj = categories.find((c) => c.id === selectedCategory || c.name === selectedCategory);
   const headerTitle = selectedCategoryObj ? getCategoryPath(selectedCategoryObj.id, categories) : '';
 
   const filteredPasswords = passwords.filter((p) => {
-    const matchesCategory = selectedCategory 
-      ? (allowedIds.includes(p.category) || allowedNames.includes(p.category))
+    const matchesCategory = selectedCategory
+      ? allowedIds.includes(p.category) || allowedNames.includes(p.category)
       : true;
+
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||
@@ -119,7 +133,11 @@ export const PasswordList: React.FC<PasswordListProps> = ({
       p.username.toLowerCase().includes(q) ||
       p.category.toLowerCase().includes(q);
 
-    return matchesCategory && matchesSearch;
+    const matchesTag =
+      !selectedTag ||
+      `${p.websiteName} ${p.notes || ''} ${p.category}`.toLowerCase().includes(selectedTag.toLowerCase());
+
+    return matchesCategory && matchesSearch && matchesTag;
   });
 
   if (!isUnlocked) {
@@ -136,7 +154,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
         </div>
         <button
           onClick={onUnlockVaultClick}
-          className="px-6 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm transition-all inline-flex items-center gap-2"
+          className="px-6 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer"
         >
           <KeyRound className="w-4 h-4" />
           <span>Unlock Password Vault</span>
@@ -158,6 +176,38 @@ export const PasswordList: React.FC<PasswordListProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Quick Tag Filter Pills */}
+      {allTags.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap overflow-x-auto pb-1">
+          <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+            <Tag className="w-3.5 h-3.5" /> Filter by Tag:
+          </span>
+          <button
+            onClick={() => setSelectedTag(null)}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+              !selectedTag
+                ? 'bg-blue-600 text-white'
+                : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+            }`}
+          >
+            All
+          </button>
+          {allTags.map((t) => (
+            <button
+              key={t}
+              onClick={() => setSelectedTag(selectedTag === t ? null : t)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+                selectedTag === t
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 hover:bg-purple-500/20'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
 
       {filteredPasswords.length === 0 ? (
         <div className="p-8 sm:p-12 text-center rounded-2xl bg-card border border-border space-y-4 shadow-sm">
@@ -183,6 +233,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
           <div className="grid grid-cols-1 md:hidden gap-3">
             {filteredPasswords.map((item) => {
               const isRevealed = revealedMap[item.id];
+              const itemTags = (item.websiteName + ' ' + (item.notes || '')).match(/#[a-zA-Z0-9_-]+/g) || [];
 
               return (
                 <div
@@ -198,240 +249,114 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                             href={item.websiteUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                            title="Open URL"
+                            className="text-muted-foreground hover:text-foreground shrink-0"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         )}
                       </div>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded bg-muted border border-border text-foreground font-medium text-[10px]">
-                        {(() => {
-                          const catObj = categories.find((c) => c.id === item.category || c.name === item.category);
-                          return catObj ? catObj.name : item.category;
-                        })()}
-                      </span>
+                      <div className="text-xs text-muted-foreground truncate">{item.username}</div>
                     </div>
-
                     <button
                       onClick={() => onToggleFavorite(item.id)}
-                      className={`p-1.5 rounded-lg border border-border transition-colors ${
-                        item.isFavorite ? 'text-amber-500 bg-amber-500/10 border-amber-500/20' : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                      className={`p-1 shrink-0 ${item.isFavorite ? 'text-amber-500' : 'text-muted-foreground'}`}
                     >
-                      <Star className={`w-3.5 h-3.5 ${item.isFavorite ? 'fill-amber-400' : ''}`} />
+                      <Star className="w-4 h-4 fill-current" />
                     </button>
                   </div>
 
-                  <div className="space-y-2 bg-muted/40 p-2.5 rounded-lg border border-border/50 text-xs">
-                    {item.entryType === 'card' && item.cardDetails && (
-                      <div className="p-2 rounded bg-background border border-border space-y-1 font-mono text-[11px]">
-                        <div className="flex justify-between items-center text-muted-foreground">
-                          <span>{item.cardDetails.cardholderName || 'Cardholder'}</span>
-                          <span>{item.cardDetails.expiryMonth}/{item.cardDetails.expiryYear}</span>
-                        </div>
-                        <div className="flex justify-between items-center font-bold text-foreground">
-                          <span>{item.cardDetails.cardNumber || '•••• •••• •••• ••••'}</span>
-                          {item.cardDetails.cvv && <span className="text-muted-foreground text-[10px]">CVV: {isRevealed ? item.cardDetails.cvv : '•••'}</span>}
-                        </div>
-                      </div>
-                    )}
+                  {item.totpSecret && <TOTPBadge secret={item.totpSecret} onCopy={(code) => onCopyText(code, '2FA Code')} />}
 
-                    {item.username && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Username</span>
-                        <div className="flex items-center gap-1.5 font-mono text-muted-foreground truncate max-w-[200px]">
-                          <span className="truncate">{item.username}</span>
-                          <button
-                            onClick={() => onCopyText(item.username, 'Username')}
-                            className="p-1 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                            title="Copy Username"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {item.password && (
-                      <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-1.5">
-                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Password</span>
-                        <div className="flex items-center gap-1 font-mono text-muted-foreground">
-                          <span className="text-xs">{isRevealed ? item.password : '••••••••••••'}</span>
-                          <button
-                            onClick={() => toggleReveal(item.id)}
-                            className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
-                            title={isRevealed ? 'Hide Password' : 'Show Password'}
-                          >
-                            {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => onCopyText(item.password, 'Password')}
-                            className="p-1 text-muted-foreground hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                            title="Copy Password"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {item.totpSecret && (
-                      <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-1.5">
-                        <span className="text-[10px] text-emerald-500 font-semibold uppercase">2FA Code</span>
-                        <TOTPBadge secret={item.totpSecret} onCopy={(code) => onCopyText(code, '2FA Code')} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/50">
-                    {onShare && (
-                      <button
-                        onClick={() => onShare(item)}
-                        className="px-2.5 py-1 text-xs text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 rounded-md font-medium transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <Share2 className="w-3 h-3" />
-                        <span>Share</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-border">
+                    <span className="text-[11px] font-mono">{isRevealed ? item.password : '••••••••••••'}</span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => toggleReveal(item.id)} className="p-1 text-muted-foreground hover:text-foreground">
+                        {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
-                    )}
-                    <button
-                      onClick={() => onEdit(item)}
-                      className="p-1.5 text-muted-foreground hover:text-foreground bg-secondary rounded-md border border-border transition-colors cursor-pointer"
-                      title="Edit Entry"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => onDelete(item.id)}
-                      className="p-1.5 text-muted-foreground hover:text-destructive bg-destructive/10 rounded-md border border-destructive/20 transition-colors cursor-pointer"
-                      title="Delete Entry"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <button onClick={() => onCopyText(item.password, 'Password')} className="p-1 text-muted-foreground hover:text-foreground">
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => onEdit(item)} className="p-1 text-muted-foreground hover:text-foreground">
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => onDelete(item.id)} className="p-1 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Desktop Table Layout */}
-          <div className="hidden md:block overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
-            <table className="w-full text-left border-collapse text-xs">
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-card border border-border rounded-2xl overflow-hidden shadow-xs">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border bg-muted/70 text-muted-foreground font-medium">
-                  <th className="py-3 px-4 w-10"></th>
-                  <th className="py-3 px-4">Website</th>
+                <tr className="border-b border-border bg-muted/50 text-muted-foreground font-semibold uppercase tracking-wider">
+                  <th className="py-3 px-4">Title & Domain</th>
                   <th className="py-3 px-4">Username / Email</th>
                   <th className="py-3 px-4">Password</th>
-                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">2FA TOTP</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredPasswords.map((item) => {
                   const isRevealed = revealedMap[item.id];
+                  const itemTags = (item.websiteName + ' ' + (item.notes || '')).match(/#[a-zA-Z0-9_-]+/g) || [];
 
                   return (
-                    <tr key={item.id} className="hover:bg-accent/40 transition-colors group">
-                      {/* Favorite */}
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => onToggleFavorite(item.id)}
-                          className={`transition-colors ${
-                            item.isFavorite ? 'text-amber-500' : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          <Star className={`w-3.5 h-3.5 ${item.isFavorite ? 'fill-amber-400' : ''}`} />
-                        </button>
-                      </td>
-
-                      {/* Website */}
+                    <tr key={item.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3 px-4 font-medium text-foreground">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-foreground">{item.websiteName}</span>
-                          {item.websiteUrl && (
-                            <a
-                              href={item.websiteUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                              title="Open URL"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
+                          <button
+                            onClick={() => onToggleFavorite(item.id)}
+                            className={`cursor-pointer ${item.isFavorite ? 'text-amber-500' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            <Star className="w-3.5 h-3.5 fill-current" />
+                          </button>
+                          <span className="font-semibold">{item.websiteName}</span>
+                          {itemTags.map((tg) => (
+                            <span key={tg} className="text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20">
+                              {tg}
+                            </span>
+                          ))}
                         </div>
                       </td>
-
-                      {/* Username */}
                       <td className="py-3 px-4 text-muted-foreground font-mono">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <span>{item.username}</span>
-                          <button
-                            onClick={() => onCopyText(item.username, 'Username')}
-                            className="text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
-                            title="Copy Username"
-                          >
+                          <button onClick={() => onCopyText(item.username, 'Username')} className="p-0.5 text-muted-foreground hover:text-foreground">
                             <Copy className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
-
-                      {/* Password */}
-                      <td className="py-3 px-4 font-mono text-muted-foreground">
-                        <div className="flex items-center gap-2">
+                      <td className="py-3 px-4 font-mono">
+                        <div className="flex items-center gap-1.5">
                           <span>{isRevealed ? item.password : '••••••••••••'}</span>
-                          <button
-                            onClick={() => toggleReveal(item.id)}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                            title={isRevealed ? 'Hide Password' : 'Show Password'}
-                          >
-                            {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <button onClick={() => toggleReveal(item.id)} className="p-0.5 text-muted-foreground hover:text-foreground">
+                            {isRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                           </button>
-                          <button
-                            onClick={() => onCopyText(item.password, 'Password')}
-                            className="text-muted-foreground hover:text-blue-500 dark:hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
-                            title="Copy Password"
-                          >
+                          <button onClick={() => onCopyText(item.password, 'Password')} className="p-0.5 text-muted-foreground hover:text-foreground">
                             <Copy className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
-
-                      {/* Category */}
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded bg-muted border border-border text-foreground font-medium">
-                          {(() => {
-                            const catObj = categories.find((c) => c.id === item.category || c.name === item.category);
-                            return catObj ? catObj.name : item.category;
-                          })()}
-                        </span>
+                        {item.totpSecret ? <TOTPBadge secret={item.totpSecret} onCopy={(code) => onCopyText(code, '2FA Code')} /> : <span className="text-muted-foreground opacity-50">—</span>}
                       </td>
-
-                      {/* Actions */}
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1.5">
                           {onShare && (
-                            <button
-                              onClick={() => onShare(item)}
-                              className="p-1 text-muted-foreground hover:text-purple-500 transition-colors"
-                              title="Secure Share Link"
-                            >
+                            <button onClick={() => onShare(item)} className="p-1 text-muted-foreground hover:text-foreground" title="Zero-Knowledge Share">
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button
-                            onClick={() => onEdit(item)}
-                            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                            title="Edit Entry"
-                          >
+                          <button onClick={() => onEdit(item)} className="p-1 text-muted-foreground hover:text-foreground" title="Edit Entry">
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => onDelete(item.id)}
-                            className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Delete Entry"
-                          >
+                          <button onClick={() => onDelete(item.id)} className="p-1 text-muted-foreground hover:text-destructive" title="Delete Entry">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>

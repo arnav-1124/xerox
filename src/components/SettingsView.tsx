@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   Clock,
@@ -10,8 +10,15 @@ import {
   Lock,
   Puzzle,
   FileJson,
+  Fingerprint,
 } from 'lucide-react';
 import { VaultSettings } from '../types';
+import {
+  isWebAuthnSupported,
+  isBiometricsConfigured,
+  registerBiometrics,
+  clearBiometricsConfig,
+} from '../lib/webauthn';
 
 interface SettingsViewProps {
   settings: VaultSettings;
@@ -22,6 +29,7 @@ interface SettingsViewProps {
   onResetVault: () => void;
   isUnlocked: boolean;
   onOpenExtensionGuide: () => void;
+  addToast?: (text: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -33,8 +41,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onResetVault,
   isUnlocked,
   onOpenExtensionGuide,
+  addToast,
 }) => {
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [biometricsModal, setBiometricsModal] = useState(false);
+  const [masterPasswordInput, setMasterPasswordInput] = useState('');
+  const [biometricsLoading, setBiometricsLoading] = useState(false);
+
+  useEffect(() => {
+    setBiometricsEnabled(isBiometricsConfigured());
+  }, []);
 
   const handleAutoLockChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onUpdateSettings({
@@ -57,13 +74,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     e.target.value = '';
   };
 
+  const handleEnableBiometricsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!masterPasswordInput) return;
+    setBiometricsLoading(true);
+
+    try {
+      await registerBiometrics(masterPasswordInput);
+      setBiometricsEnabled(true);
+      setBiometricsModal(false);
+      setMasterPasswordInput('');
+      addToast?.('Biometric authentication registered successfully!', 'success');
+    } catch (err: any) {
+      addToast?.(err.message || 'Biometric registration failed', 'error');
+    } finally {
+      setBiometricsLoading(false);
+    }
+  };
+
+  const handleDisableBiometrics = () => {
+    clearBiometricsConfig();
+    setBiometricsEnabled(false);
+    addToast?.('Biometric authentication disabled', 'info');
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 sm:space-y-8 text-foreground">
       {/* Page Title */}
       <div className="border-b border-border pb-4">
         <h2 className="text-xl font-bold">Settings & Security Architecture</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Manage local auto-lock timer, encrypted backup exports, and extension autofill parameters.
+          Manage local auto-lock timer, biometric authentication, encrypted backups, and extension parameters.
         </p>
       </div>
 
@@ -101,129 +142,161 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="checkbox"
                 checked={settings.requireConfirmationForAutofill}
                 onChange={handleRequireConfirmChange}
-                className="rounded bg-muted border-border text-blue-600 focus:ring-0"
+                className="rounded border-border text-primary focus:ring-ring"
               />
-              <span>Require user confirmation before extension autofill</span>
+              <span>Require confirmation before autofilling extension</span>
             </label>
           </div>
         </div>
 
-        {/* Extension Info Card */}
+        {/* Biometric WebAuthn Unlock */}
         <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-500 flex items-center justify-center">
+              <Fingerprint className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-card-foreground">Biometric Unlock</h3>
+              <p className="text-[11px] text-muted-foreground">Touch ID / Face ID / Windows Hello</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Unlock your Xerox Vault instantly with hardware biometrics or WebAuthn platform authenticators.
+            </p>
+
+            {biometricsEnabled ? (
+              <div className="flex items-center justify-between bg-purple-500/10 border border-purple-500/20 rounded-xl p-3">
+                <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-300 font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-purple-500" />
+                  <span>Biometrics Enabled</span>
+                </div>
+                <button
+                  onClick={handleDisableBiometrics}
+                  className="text-xs text-destructive hover:underline font-medium"
+                >
+                  Disable
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setBiometricsModal(true)}
+                disabled={!isUnlocked}
+                className="w-full py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Enable Biometric Unlock
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Extension Integration Card */}
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-500 flex items-center justify-center">
               <Puzzle className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-card-foreground">Browser Extension</h3>
-              <p className="text-[11px] text-muted-foreground">Real Chrome & Edge autofill integration</p>
+              <p className="text-[11px] text-muted-foreground">Manifest V3 Chrome/Edge extension</p>
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground leading-relaxed pt-1">
-            Install the Xerox Manifest V3 extension to enjoy real username & password field detection and automated autofill on websites.
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Install the Xerox extension to autofill credentials directly inside login forms on web pages.
           </p>
 
           <button
             onClick={onOpenExtensionGuide}
-            className="w-full py-2 px-3 rounded-lg bg-muted hover:bg-accent border border-border text-xs font-semibold text-blue-600 dark:text-blue-300 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-2 px-3 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold border border-border transition cursor-pointer"
           >
-            <Puzzle className="w-3.5 h-3.5" />
-            <span>Open Extension Setup & Download (.zip)</span>
+            Download Extension & Setup Guide
           </button>
         </div>
-      </div>
 
-      {/* Encrypted Vault Backup & Restore */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
-            <Shield className="w-4 h-4" />
+        {/* Danger Zone: Reset Vault */}
+        <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-destructive/10 text-destructive flex items-center justify-center">
+              <RotateCcw className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-destructive">Danger Zone</h3>
+              <p className="text-[11px] text-muted-foreground">Purge local database</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-card-foreground">Encrypted Vault Backup & Migration</h3>
-            <p className="text-[11px] text-muted-foreground">Export or import your vault in Encrypted JSON, Unencrypted JSON, or CSV format</p>
-          </div>
-        </div>
 
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Backups exported in JSON format can be fully encrypted using AES-GCM 256-bit encryption. You can also export/import unencrypted JSON or plain CSV files (compatible with Bitwarden, Chrome, and 1Password).
-        </p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Permanently delete all local IndexedDB bookmarks, credentials, and settings.
+          </p>
 
-        <div className="flex flex-wrap gap-3 pt-2">
-          <button
-            onClick={() => onExportJSON(true)}
-            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export Encrypted Backup (JSON)</span>
-          </button>
-
-          <button
-            onClick={() => onExportJSON(false)}
-            className="px-4 py-2 rounded-lg bg-secondary border border-border text-foreground hover:bg-accent font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-          >
-            <FileJson className="w-3.5 h-3.5 text-blue-500" />
-            <span>Export Unencrypted Backup (JSON)</span>
-          </button>
-
-          {isUnlocked && (
+          {!resetConfirm ? (
             <button
-              onClick={onExportCSV}
-              className="px-4 py-2 rounded-lg bg-secondary border border-border text-foreground hover:bg-accent font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+              onClick={() => setResetConfirm(true)}
+              className="w-full py-2 px-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20 text-xs font-semibold transition cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5 text-amber-500" />
-              <span>Export CSV (Passwords only)</span>
+              Reset Local Vault Data
             </button>
-          )}
-
-          <label className="px-4 py-2 rounded-lg bg-muted hover:bg-accent border border-border text-foreground font-semibold text-xs cursor-pointer transition-colors flex items-center gap-2">
-            <Upload className="w-3.5 h-3.5 text-blue-500" />
-            <span>Import JSON / CSV</span>
-            <input type="file" accept=".json,.csv" onChange={handleFileChange} className="hidden" />
-          </label>
-        </div>
-      </div>
-
-      {/* Local Wipe / Reset */}
-      <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-destructive/20 text-destructive flex items-center justify-center">
-            <RotateCcw className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-destructive">Reset Local Vault</h3>
-            <p className="text-[11px] text-destructive/80">Wipe all bookmarks, passwords, and local IndexedDB database</p>
-          </div>
-        </div>
-
-        {!resetConfirm ? (
-          <button
-            onClick={() => setResetConfirm(true)}
-            className="px-4 py-2 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive font-semibold text-xs border border-destructive/30 transition-colors"
-          >
-            Reset Entire Vault...
-          </button>
-        ) : (
-          <div className="space-y-3 bg-destructive/15 p-4 rounded-xl border border-destructive/30">
-            <p className="text-xs text-destructive font-semibold">Are you completely sure? This will permanently delete all local bookmarks and encrypted password data.</p>
+          ) : (
             <div className="flex gap-2">
               <button
                 onClick={onResetVault}
-                className="px-4 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold text-xs"
+                className="flex-1 py-2 px-3 rounded-lg bg-destructive text-destructive-foreground text-xs font-semibold shadow-xs hover:bg-destructive/90 transition cursor-pointer"
               >
-                Yes, Wipe Everything
+                Confirm Reset
               </button>
               <button
                 onClick={() => setResetConfirm(false)}
-                className="px-4 py-1.5 rounded-lg bg-secondary hover:bg-accent text-secondary-foreground font-medium text-xs"
+                className="py-2 px-3 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition cursor-pointer"
               >
                 Cancel
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Enable Biometrics Modal */}
+      {biometricsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-popover border border-border rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center gap-3">
+              <Fingerprint className="w-6 h-6 text-purple-500" />
+              <h3 className="font-bold text-sm">Register Biometric Unlock</h3>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Enter your Master Password to bind WebAuthn biometrics (Touch ID / Face ID / Windows Hello) for passwordless vault unlock.
+            </p>
+            <form onSubmit={handleEnableBiometricsSubmit} className="space-y-3">
+              <input
+                type="password"
+                required
+                placeholder="Master Password"
+                value={masterPasswordInput}
+                onChange={(e) => setMasterPasswordInput(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-xs outline-none focus:border-ring"
+              />
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={biometricsLoading}
+                  className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold cursor-pointer"
+                >
+                  {biometricsLoading ? 'Scanning...' : 'Register Scan'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBiometricsModal(false)}
+                  className="py-2 px-4 rounded-xl bg-muted text-foreground text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

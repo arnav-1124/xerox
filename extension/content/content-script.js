@@ -141,6 +141,9 @@
     
     if (message.action === 'EXECUTE_AUTOFILL' && message.credential) {
       closeAllModals();
+      if (message.credential.totpCode) {
+        try { navigator.clipboard.writeText(message.credential.totpCode); } catch (e) {}
+      }
       const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
       const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || fields;
       
@@ -150,7 +153,11 @@
           liveFields.passwordInput,
           message.credential
         );
-        showBriefToast('✓ Xerox Autofilled Credentials!');
+        if (message.credential.totpCode) {
+          showBriefToast(`✓ Xerox Autofilled!\n2FA Code (${message.credential.totpCode}) copied to clipboard`);
+        } else {
+          showBriefToast('✓ Xerox Autofilled Credentials!');
+        }
         sendResponse({ success: true, details: fillRes });
       } else {
         debugLog('EXECUTE_AUTOFILL failed: No login fields found');
@@ -219,12 +226,19 @@
     }, (res) => {
       if (res && res.success && res.credential) {
         closeAllModals();
+        if (res.credential.totpCode) {
+          try { navigator.clipboard.writeText(res.credential.totpCode); } catch (e) {}
+        }
         const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
         const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
         
         if (liveFields && (liveFields.usernameInput || liveFields.passwordInput)) {
           window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, res.credential);
-          showBriefToast('✓ Xerox Autofilled Credentials!');
+          if (res.credential.totpCode) {
+            showBriefToast(`✓ Xerox Autofilled!\n2FA Code (${res.credential.totpCode}) copied to clipboard`);
+          } else {
+            showBriefToast('✓ Xerox Autofilled Credentials!');
+          }
         } else {
           showNoticeModal('Autofill Error', 'Could not locate target login input fields.');
         }
@@ -370,9 +384,13 @@
     `;
 
     matches.forEach(m => {
+      const totpBadge = m.hasTotp ? '<span style="font-size:10px;background:#8b5cf6;color:#fff;padding:2px 6px;border-radius:4px;margin-left:6px;">2FA</span>' : '';
       html += `
         <button class="xerox-picker-item" data-id="${m.id}" data-search="${(m.websiteName + ' ' + m.username + ' ' + (m.websiteUrl||'')).toLowerCase()}" style="background:#1f2937;border:1px solid #374151;border-radius:8px;padding:10px 12px;text-align:left;color:#fff;cursor:pointer;font-size:13px;display:flex;flex-direction:column;transition:background 0.15s, border-color 0.15s;width:100%;">
-          <span style="font-weight:600;color:#f3f4f6;">${m.websiteName}</span>
+          <div style="display:flex;align-items:center;justify-space-between;width:100%;">
+            <span style="font-weight:600;color:#f3f4f6;">${m.websiteName}</span>
+            ${totpBadge}
+          </div>
           <span style="font-size:11px;color:#9ca3af;margin-top:2px;">${m.username || 'No username'}</span>
         </button>
       `;
@@ -447,13 +465,13 @@
   function showBriefToast(text) {
     const shadow = window.XeroxAutofill.getShadowRoot();
     const toast = document.createElement('div');
-    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;border:1.5px solid #3b82f6;color:#38bdf8;padding:10px 16px;border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;z-index:2147483647;box-shadow:0 10px 25px rgba(0,0,0,0.7);transition:opacity 0.3s;';
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;border:1.5px solid #8b5cf6;color:#c084fc;padding:10px 16px;border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;z-index:2147483647;box-shadow:0 10px 25px rgba(0,0,0,0.7);transition:opacity 0.3s;white-space:pre-wrap;';
     toast.textContent = text;
     shadow.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);
-    }, 2200);
+    }, 2800);
   }
 
   if (document.readyState === 'loading') {
