@@ -550,6 +550,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
   }
 
+  function closeAllModals() {
+    try {
+      const shadow = window.XeroxAutofill.getShadowRoot();
+      if (!shadow) return;
+      ['xerox-inline-unlock-modal', 'xerox-account-picker', 'xerox-no-matches-modal', 'xerox-notice-modal'].forEach(id => {
+        const modal = shadow.getElementById(id);
+        if (modal) modal.remove();
+      });
+    } catch (e) {}
+  }
+
   function handleFocusIn(e) {
     const target = e.composedPath()[0] || e.target;
     if (!target || target.tagName !== 'INPUT') return;
@@ -589,6 +600,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'EXECUTE_AUTOFILL' && message.credential) {
+      closeAllModals();
       const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
       const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || fields;
       if (liveFields && (liveFields.usernameInput || liveFields.passwordInput)) {
@@ -617,8 +629,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (!response.isUnlocked) {
         showInlineUnlockModal((masterPassword, setError) => {
           chrome.runtime.sendMessage({ action: 'UNLOCK_VAULT', payload: { masterPassword } }, (unlockRes) => {
-            if (unlockRes && unlockRes.success) handleAutofillTrigger(liveFields);
-            else setError(unlockRes?.error || 'Incorrect master password.');
+            if (unlockRes && unlockRes.success) {
+              closeAllModals();
+              handleAutofillTrigger(liveFields);
+            } else setError(unlockRes?.error || 'Incorrect master password.');
           });
         });
         return;
@@ -637,6 +651,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   function authorizeAndFill(credentialId, loginFields, allowCrossDomain = false) {
     chrome.runtime.sendMessage({ action: 'AUTHORIZE_AUTOFILL', payload: { id: credentialId, url: window.location.href, allowCrossDomain } }, (res) => {
       if (res && res.success && res.credential) {
+        closeAllModals();
         const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
         const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
         if (liveFields) window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, res.credential);

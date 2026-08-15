@@ -40,6 +40,23 @@
     return false;
   }
 
+  function closeAllModals() {
+    try {
+      const shadow = window.XeroxAutofill.getShadowRoot();
+      if (!shadow) return;
+      const modalIds = [
+        'xerox-inline-unlock-modal',
+        'xerox-account-picker',
+        'xerox-no-matches-modal',
+        'xerox-notice-modal'
+      ];
+      modalIds.forEach(id => {
+        const modal = shadow.getElementById(id);
+        if (modal) modal.remove();
+      });
+    } catch (e) {}
+  }
+
   function handleFocusIn(e) {
     const target = e.composedPath()[0] || e.target;
     if (!target || target.tagName !== 'INPUT') return;
@@ -123,6 +140,7 @@
     debugLog('Message received in CS:', message.action);
     
     if (message.action === 'EXECUTE_AUTOFILL' && message.credential) {
+      closeAllModals();
       const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
       const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || fields;
       
@@ -169,6 +187,7 @@
         showInlineUnlockModal((masterPassword, setError) => {
           chrome.runtime.sendMessage({ action: 'UNLOCK_VAULT', payload: { masterPassword } }, (unlockRes) => {
             if (unlockRes && unlockRes.success) {
+              closeAllModals();
               handleAutofillTrigger(liveFields);
             } else {
               setError(unlockRes?.error || 'Incorrect master password.');
@@ -199,6 +218,7 @@
       payload: { id: credentialId, url: window.location.href, allowCrossDomain }
     }, (res) => {
       if (res && res.success && res.credential) {
+        closeAllModals();
         const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
         const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
         
