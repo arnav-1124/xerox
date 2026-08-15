@@ -1,36 +1,50 @@
+/**
+ * Xerox Extension Content Script
+ * Detects login fields, manages floating badge & inline modals inside Shadow DOM,
+ * handles extension message contracts and securely syncs vault ONLY from explicit Xerox web app origins.
+ */
+
 (function () {
+  const XEROX_DEBUG_AUTOFILL = true;
+
+  function debugLog(...args) {
+    if (XEROX_DEBUG_AUTOFILL) {
+      console.log('[XEROX DEBUG CS]', ...args);
+    }
+  }
+
   let fields = null;
   let focusTimeout = null;
 
-  function checkAndSyncWebVault() {
-    try {
-      const rawMeta = localStorage.getItem('xerox_vault_meta_sync');
-      console.log('[Xerox CS] checkAndSyncWebVault: localStorage key found =', !!rawMeta);
-      if (rawMeta) {
-        const meta = JSON.parse(rawMeta);
-        if (meta && meta.encryptedVault) {
-          console.log('[Xerox CS] Syncing vault from localStorage to background...');
-          chrome.runtime.sendMessage({
-            action: 'SYNC_VAULT_FROM_WEBAPP',
-            payload: { vaultMeta: meta, encryptedVault: meta.encryptedVault }
-          }, (res) => {
-            console.log('[Xerox CS] SYNC_VAULT_FROM_WEBAPP response:', res);
-            if (chrome.runtime.lastError) {
-              console.error('[Xerox CS] sendMessage error:', chrome.runtime.lastError.message);
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.error('[Xerox CS] checkAndSyncWebVault error:', e);
-    }
+  // Explicit allowed Xerox Web Vault origins (no wildcard *.vercel.app or *.xerox.*)
+  const TRUSTED_XEROX_ORIGINS = [
+    'https://xerox-orcin.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8089',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8089'
+  ];
+
+  function isTrustedXeroxOrigin() {
+    const origin = (window.location.origin || '').toLowerCase();
+    const host = (window.location.hostname || '').toLowerCase();
+
+    // 1. Explicit match against official production & development origins
+    if (TRUSTED_XEROX_ORIGINS.includes(origin)) return true;
+
+    // 2. Strict local development host check
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+
+    return false;
   }
 
   function handleFocusIn(e) {
     const target = e.composedPath()[0] || e.target;
     if (!target || target.tagName !== 'INPUT') return;
 
-    const liveFields = window.XeroxFieldDetector.findLoginFields();
+    const liveFields = window.XeroxFieldDetector.findLoginFields(target);
     if (liveFields && (liveFields.passwordInput || liveFields.usernameInput)) {
       fields = liveFields;
       if (target === liveFields.passwordInput || target === liveFields.usernameInput) {
@@ -40,46 +54,88 @@
     }
   }
 
-  function handleFocusOut() {
+  function handleFocusOut(e) {
     focusTimeout = setTimeout(() => {
-      window.XeroxAutofill.hideBadge();
-    }, 250);
+      const active = document.activeElement;
+      if (!active || active.tagName !== 'INPUT') {
+        const shadow = window.XeroxAutofill.getShadowRoot();
+        const modalOpen = shadow.getElementById('xerox-inline-unlock-modal') || shadow.getElementById('xerox-account-picker');
+        if (!modalOpen) {
+          // Keep badge visible if form inputs are active
+        }
+      }
+    }, 400);
   }
 
   function initDetector() {
-    checkAndSyncWebVault();
+    debugLog('Content script initialized on:', window.location.href);
+
+    // Dynamic forms mutation observer
+    window.XeroxFieldDetector.observeDynamicForms((newFields) => {
+      debugLog('Dynamic form detected on page');
+      fields = newFields;
+      if (fields && (fields.passwordInput || fields.usernameInput)) {
+        setupBadge(fields);
+      }
+    });
+
+    // Check initial fields on load
+    const initialFields = window.XeroxFieldDetector.findLoginFields();
+    if (initialFields && (initialFields.passwordInput || initialFields.usernameInput)) {
+      fields = initialFields;
+      setupBadge(initialFields);
+    }
 
     document.addEventListener('focusin', handleFocusIn, true);
     document.addEventListener('focusout', handleFocusOut, true);
   }
 
+  // Listen for web app vault sync postMessage (ONLY from trusted Xerox origin)
   window.addEventListener('message', (event) => {
-    console.log('[Xerox CS] window.message received, type:', event.data && event.data.type);
+    if (!isTrustedXeroxOrigin()) {
+      return; // Security guard: ignore postMessage from non-Xerox origins
+    }
+
+    if (event.origin && !isTrustedXeroxOrigin() && !event.origin.includes('localhost') && !event.origin.includes('127.0.0.1')) {
+      return;
+    }
+
     if (event.data && event.data.type === 'XEROX_SYNC_VAULT') {
       const { vaultMeta, encryptedVault } = event.data;
-      console.log('[Xerox CS] XEROX_SYNC_VAULT received, has vault:', !!encryptedVault);
-      if (vaultMeta && encryptedVault) {
+      debugLog('XEROX_SYNC_VAULT received via postMessage on trusted origin. Has encryptedVault:', !!encryptedVault);
+      if (vaultMeta || encryptedVault) {
         chrome.runtime.sendMessage({
           action: 'SYNC_VAULT_FROM_WEBAPP',
           payload: { vaultMeta, encryptedVault }
         }, (res) => {
-          console.log('[Xerox CS] SYNC_VAULT_FROM_WEBAPP (postMsg) response:', res);
           if (chrome.runtime.lastError) {
-            console.error('[Xerox CS] sendMessage error:', chrome.runtime.lastError.message);
+            debugLog('Sync message error:', chrome.runtime.lastError.message);
+          } else {
+            debugLog('SYNC_VAULT_FROM_WEBAPP response:', res);
           }
         });
       }
     }
   });
 
+  // Extension runtime message listener
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    debugLog('Message received in CS:', message.action);
+    
     if (message.action === 'EXECUTE_AUTOFILL' && message.credential) {
-      const liveFields = window.XeroxFieldDetector.findLoginFields() || fields;
-      if (liveFields) {
-        window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, message.credential);
+      const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
+      const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || fields;
+      
+      if (liveFields && (liveFields.usernameInput || liveFields.passwordInput)) {
+        const fillRes = window.XeroxAutofill.fillCredentials(
+          liveFields.usernameInput,
+          liveFields.passwordInput,
+          message.credential
+        );
         showBriefToast('✓ Xerox Autofilled Credentials!');
-        sendResponse({ success: true });
+        sendResponse({ success: true, details: fillRes });
       } else {
+        debugLog('EXECUTE_AUTOFILL failed: No login fields found');
         sendResponse({ success: false, error: 'No login fields found on page' });
       }
     }
@@ -88,6 +144,8 @@
 
   function setupBadge(loginFields, focusTarget) {
     const target = focusTarget || loginFields.passwordInput || loginFields.usernameInput || loginFields.targetInput;
+    if (!target) return;
+
     window.XeroxAutofill.attachAutofillBadge(target, () => {
       handleAutofillTrigger(loginFields);
     });
@@ -95,15 +153,19 @@
 
   function handleAutofillTrigger(loginFields) {
     const currentUrl = window.location.href;
-    const liveFields = window.XeroxFieldDetector.findLoginFields() || loginFields;
+    const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
+    const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
+
+    debugLog('Autofill trigger requested for URL:', currentUrl);
 
     chrome.runtime.sendMessage({ action: 'GET_MATCHING_CREDENTIALS', payload: { url: currentUrl } }, (response) => {
-      if (!response) {
-        showNoticeModal('Extension Error', 'Background service worker is unresponsive. Please reload the page.');
+      if (chrome.runtime.lastError || !response) {
+        showNoticeModal('Extension Error', 'Background service worker is unresponsive. Please reload the page or extension.');
         return;
       }
 
       if (!response.isUnlocked) {
+        debugLog('Vault is locked, showing unlock modal');
         showInlineUnlockModal((masterPassword, setError) => {
           chrome.runtime.sendMessage({ action: 'UNLOCK_VAULT', payload: { masterPassword } }, (unlockRes) => {
             if (unlockRes && unlockRes.success) {
@@ -117,34 +179,95 @@
       }
 
       const matches = response.matches || [];
+      debugLog('Matching credentials count:', matches.length);
 
       if (matches.length === 1) {
         authorizeAndFill(matches[0].id, liveFields);
       } else if (matches.length > 1) {
-        showAccountPickerModal(matches, (selectedId) => authorizeAndFill(selectedId, liveFields));
+        showAccountPickerModal(matches, (selectedId, allowCrossDomain) => authorizeAndFill(selectedId, liveFields, allowCrossDomain));
       } else {
-        chrome.runtime.sendMessage({ action: 'GET_ALL_CREDENTIALS_SUMMARY' }, (allRes) => {
-          const allItems = (allRes && allRes.credentials) || [];
-          if (allItems.length === 0) {
-            showNoticeModal('No Vault Credentials', 'No credentials found in your Xerox Vault.\n\nOpen your Xerox Web Vault tab to add credentials!');
-          } else {
-            showAccountPickerModal(allItems, (selectedId) => authorizeAndFill(selectedId, liveFields), true);
-          }
-        });
+        showNoMatchesModal(currentUrl, liveFields);
       }
     });
   }
 
-  function authorizeAndFill(credentialId, loginFields) {
-    chrome.runtime.sendMessage({ action: 'AUTHORIZE_AUTOFILL', payload: { id: credentialId, url: window.location.href } }, (res) => {
+  function authorizeAndFill(credentialId, loginFields, allowCrossDomain = false) {
+    debugLog('Authorizing credential ID:', credentialId, 'allowCrossDomain:', allowCrossDomain);
+
+    chrome.runtime.sendMessage({
+      action: 'AUTHORIZE_AUTOFILL',
+      payload: { id: credentialId, url: window.location.href, allowCrossDomain }
+    }, (res) => {
       if (res && res.success && res.credential) {
-        const liveFields = window.XeroxFieldDetector.findLoginFields() || loginFields;
-        window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, res.credential);
-        showBriefToast('✓ Xerox Autofilled Credentials!');
+        const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
+        const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
+        
+        if (liveFields && (liveFields.usernameInput || liveFields.passwordInput)) {
+          window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, res.credential);
+          showBriefToast('✓ Xerox Autofilled Credentials!');
+        } else {
+          showNoticeModal('Autofill Error', 'Could not locate target login input fields.');
+        }
       } else {
-        showNoticeModal('Autofill Error', res?.error || 'Failed to fill credential.');
+        showNoticeModal('Autofill Denied', res?.error || 'Failed to authorize credential.');
       }
     });
+  }
+
+  function showNoMatchesModal(currentUrl, liveFields) {
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-no-matches-modal');
+    if (existing) existing.remove();
+
+    let domainName = currentUrl;
+    try { domainName = new URL(currentUrl).hostname.replace(/^www\./, ''); } catch (e) {}
+
+    const overlay = document.createElement('div');
+    overlay.id = 'xerox-no-matches-modal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#111827;border:1px solid #374151;border-radius:14px;padding:22px;width:340px;color:#f3f4f6;box-shadow:0 20px 25px -5px rgba(0,0,0,0.8);display:flex;flex-direction:column;gap:14px;';
+
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">🔐</span>
+          <span style="font-weight:700;font-size:14px;color:#60a5fa;">No Matching Credential</span>
+        </div>
+        <button id="xerox-no-matches-close" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;">✕</button>
+      </div>
+      <div style="font-size:12.5px;color:#d1d5db;line-height:1.5;">
+        No saved credential found for domain: <strong style="color:#60a5fa;">${domainName}</strong>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+        <button id="xerox-pick-all-btn" style="background:#1f2937;border:1px solid #4b5563;color:#60a5fa;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;">
+          Choose another credential...
+        </button>
+        <button id="xerox-no-matches-cancel" style="background:#374151;border:none;color:#f3f4f6;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;">
+          Cancel
+        </button>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    shadow.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    shadow.getElementById('xerox-no-matches-close').onclick = close;
+    shadow.getElementById('xerox-no-matches-cancel').onclick = close;
+
+    shadow.getElementById('xerox-pick-all-btn').onclick = () => {
+      close();
+      chrome.runtime.sendMessage({ action: 'GET_ALL_CREDENTIALS_SUMMARY' }, (allRes) => {
+        const allItems = (allRes && allRes.credentials) || [];
+        if (allItems.length === 0) {
+          showNoticeModal('No Credentials', 'No credentials found in your Xerox Vault.\n\nOpen your Xerox Web Vault to add credentials.');
+        } else {
+          showAccountPickerModal(allItems, (selectedId) => authorizeAndFill(selectedId, liveFields, true), true);
+        }
+      });
+    };
   }
 
   function showInlineUnlockModal(onSubmit) {
@@ -265,7 +388,7 @@
     items.forEach(btn => {
       btn.onclick = () => {
         overlay.remove();
-        onSelect(btn.dataset.id);
+        onSelect(btn.dataset.id, isAllFallback);
       };
     });
   }
@@ -313,6 +436,9 @@
     }, 2200);
   }
 
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initDetector); }
-  else { initDetector(); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDetector);
+  } else {
+    initDetector();
+  }
 })();

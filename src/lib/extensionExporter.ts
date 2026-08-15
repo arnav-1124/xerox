@@ -23,6 +23,7 @@ export async function generateExtensionZip(): Promise<Blob> {
             matches: ['<all_urls>'],
             js: ['content/field-detector.js', 'content/autofill.js', 'content/content-script.js'],
             run_at: 'document_idle',
+            all_frames: true,
           },
         ],
         action: {
@@ -50,37 +51,65 @@ export async function generateExtensionZip(): Promise<Blob> {
   bgFolder?.file(
     'service-worker.js',
     `
-import { extractDomain, isSafeDomainMatch, filterMatchingCredentials } from '../vault/credential-matcher.js';
+import { extractDomain, filterMatchingCredentials, isSafeDomainMatch } from '../vault/credential-matcher.js';
 import { decryptVault } from '../vault/secure-storage.js';
 
+const XEROX_DEBUG_AUTOFILL = true;
+
+function debugLog(...args) {
+  if (XEROX_DEBUG_AUTOFILL) console.log('[XEROX DEBUG SW]', ...args);
+}
+
 let activeDecryptedVault = null;
-let autoLockTimer = null;
 let autoLockMinutes = 15;
 
 async function getActiveVault() {
-  if (activeDecryptedVault) return activeDecryptedVault;
+  const now = Date.now();
+  if (activeDecryptedVault) {
+    try {
+      if (chrome.storage.session) {
+        const sess = await chrome.storage.session.get(['unlockedAt', 'autoLockMinutes']);
+        const minutes = sess.autoLockMinutes || autoLockMinutes;
+        const unlockedAt = sess.unlockedAt || 0;
+        if (minutes > 0 && unlockedAt > 0 && (now - unlockedAt > minutes * 60 * 1000)) {
+          await lockVaultInternal();
+          return null;
+        }
+      }
+    } catch (e) {}
+    return activeDecryptedVault;
+  }
+
   try {
     if (chrome.storage.session) {
-      const sess = await chrome.storage.session.get(['decryptedVault', 'isUnlocked']);
+      const sess = await chrome.storage.session.get(['decryptedVault', 'isUnlocked', 'unlockedAt', 'autoLockMinutes']);
       if (sess && sess.isUnlocked && sess.decryptedVault) {
+        const minutes = sess.autoLockMinutes || autoLockMinutes;
+        const unlockedAt = sess.unlockedAt || 0;
+        if (minutes > 0 && unlockedAt > 0 && (now - unlockedAt > minutes * 60 * 1000)) {
+          await lockVaultInternal();
+          return null;
+        }
         activeDecryptedVault = sess.decryptedVault;
         return activeDecryptedVault;
       }
     }
   } catch (e) {}
+
   return null;
 }
 
-function resetAutoLock() {
-  if (autoLockTimer) clearTimeout(autoLockTimer);
-  if (autoLockMinutes > 0) {
-    autoLockTimer = setTimeout(async () => {
-      activeDecryptedVault = null;
-      if (chrome.storage.session) {
-        await chrome.storage.session.remove(['decryptedVault', 'isUnlocked']);
-      }
-      chrome.storage.local.set({ isUnlocked: false });
-    }, autoLockMinutes * 60 * 1000);
+async function lockVaultInternal() {
+  activeDecryptedVault = null;
+  if (chrome.storage.session) {
+    try { await chrome.storage.session.clear(); } catch (e) {}
+  }
+  await chrome.storage.local.set({ isUnlocked: false });
+}
+
+async function touchSession() {
+  if (chrome.storage.session) {
+    try { await chrome.storage.session.set({ unlockedAt: Date.now() }); } catch (e) {}
   }
 }
 
@@ -89,17 +118,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (action === 'GET_LOCK_STATUS') {
     getActiveVault().then((vault) => {
-      sendResponse({ isUnlocked: !!vault });
+      sendResponse({ isUnlocked: !!vault, hasVaultData: true });
     });
     return true;
   }
 
   if (action === 'UNLOCK_VAULT') {
-    const { masterPassword } = payload;
+    const { masterPassword } = payload || {};
     chrome.storage.local.get(['vaultMeta', 'encryptedVault'], async (res) => {
       try {
-        const meta = res.vaultMeta;
-        const vault = res.encryptedVault || (meta && meta.encryptedVault);
+        let meta = res.vaultMeta;
+        let vault = res.encryptedVault || (meta && meta.encryptedVault);
+
         if (!vault || !vault.cipherText) {
           sendResponse({
             success: false,
@@ -112,31 +142,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         let lastError = null;
         const saltToUse = vault.salt || (meta && meta.salt);
 
-        try {
-          decrypted = await decryptVault(vault.cipherText, vault.iv, saltToUse, masterPassword);
-        } catch (e) {
-          lastError = e;
-        }
+        try { decrypted = await decryptVault(vault.cipherText, vault.iv, saltToUse, masterPassword); } catch (e) { lastError = e; }
 
         if (!decrypted && meta && meta.salt && meta.salt !== vault.salt) {
-          try {
-            decrypted = await decryptVault(vault.cipherText, vault.iv, meta.salt, masterPassword);
-          } catch (e) {
-            lastError = e;
-          }
+          try { decrypted = await decryptVault(vault.cipherText, vault.iv, meta.salt, masterPassword); } catch (e) { lastError = e; }
         }
 
-        if (!decrypted) {
-          throw new Error(lastError?.message || 'Incorrect master password');
-        }
+        if (!decrypted) throw new Error(lastError?.message || 'Incorrect master password');
 
         activeDecryptedVault = decrypted;
         
         if (chrome.storage.session) {
-          await chrome.storage.session.set({ decryptedVault: decrypted, isUnlocked: true });
+          await chrome.storage.session.set({
+            decryptedVault: decrypted,
+            isUnlocked: true,
+            unlockedAt: Date.now(),
+            autoLockMinutes: autoLockMinutes
+          });
         }
-        chrome.storage.local.set({ isUnlocked: true });
-        resetAutoLock();
+        await chrome.storage.local.set({ isUnlocked: true });
+
         sendResponse({ success: true, count: decrypted.length });
       } catch (err) {
         sendResponse({ success: false, error: err.message || 'Incorrect master password' });
@@ -146,33 +171,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (action === 'LOCK_VAULT') {
-    activeDecryptedVault = null;
-    if (autoLockTimer) clearTimeout(autoLockTimer);
-    if (chrome.storage.session) {
-      chrome.storage.session.remove(['decryptedVault', 'isUnlocked']);
-    }
-    chrome.storage.local.set({ isUnlocked: false });
-    sendResponse({ success: true });
+    lockVaultInternal().then(() => sendResponse({ success: true }));
     return true;
   }
 
   if (action === 'GET_MATCHING_CREDENTIALS') {
-    const { url } = payload;
+    const { url } = payload || {};
     getActiveVault().then((vault) => {
       if (!vault) {
         sendResponse({ isUnlocked: false, matches: [] });
         return;
       }
-      resetAutoLock();
+      touchSession();
       const matches = filterMatchingCredentials(url, vault);
       sendResponse({
         isUnlocked: true,
         domain: extractDomain(url),
         matches: matches.map(m => ({
           id: m.id,
-          websiteName: m.websiteName,
-          websiteUrl: m.websiteUrl,
-          username: m.username,
+          websiteName: m.websiteName || m.title || extractDomain(m.websiteUrl) || 'Untitled',
+          websiteUrl: m.websiteUrl || m.url || '',
+          username: m.username || m.email || '',
         }))
       });
     });
@@ -180,18 +199,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (action === 'AUTHORIZE_AUTOFILL') {
-    const { id, url } = payload;
+    const { id, url, allowCrossDomain } = payload || {};
     getActiveVault().then((vault) => {
       if (!vault) {
         sendResponse({ success: false, error: 'Vault is locked. Please unlock via extension.' });
         return;
       }
-      resetAutoLock();
+
+      touchSession();
       const item = vault.find(c => c.id === id);
       if (!item) {
         sendResponse({ success: false, error: 'Credential not found in vault.' });
         return;
       }
+
+      const credUrl = item.websiteUrl || item.url || item.websiteName || '';
+      const domainMatch = isSafeDomainMatch(url, credUrl);
+
+      if (!domainMatch && !allowCrossDomain) {
+        sendResponse({
+          success: false,
+          error: \`Security Warning: Credential domain (\${extractDomain(credUrl) || 'unknown'}) does not match target website (\${extractDomain(url)}).\`
+        });
+        return;
+      }
+
       sendResponse({
         success: true,
         credential: {
@@ -223,10 +255,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (action === 'SYNC_VAULT_FROM_WEBAPP') {
-    const { vaultMeta, encryptedVault } = payload;
-    chrome.storage.local.set({ vaultMeta, encryptedVault }, () => {
-      sendResponse({ success: true });
-    });
+    const { vaultMeta, encryptedVault } = payload || {};
+    if (vaultMeta || encryptedVault) {
+      chrome.storage.local.set({
+        vaultMeta: vaultMeta || { encryptedVault },
+        encryptedVault: encryptedVault || (vaultMeta && vaultMeta.encryptedVault)
+      }, () => sendResponse({ success: true }));
+    } else {
+      sendResponse({ success: false, error: 'Missing vault payload' });
+    }
     return true;
   }
 });
@@ -240,62 +277,130 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     `
 (function () {
   window.XeroxFieldDetector = {
-    findLoginFields() {
-      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="image"])'));
-      const visibleInputs = allInputs.filter(i => {
-        const style = window.getComputedStyle(i);
-        const rect = i.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && (rect.width > 0 || i.offsetWidth > 0);
+    findLoginFields(contextTarget) {
+      function getInputsRecursive(root) {
+        let inputs = [];
+        if (!root) return inputs;
+        try {
+          const directInputs = Array.from(
+            root.querySelectorAll(
+              'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="image"])'
+            )
+          );
+          inputs.push(...directInputs);
+        } catch (e) {}
+        try {
+          const allElements = Array.from(root.querySelectorAll('*'));
+          for (const el of allElements) {
+            if (el.shadowRoot) inputs.push(...getInputsRecursive(el.shadowRoot));
+          }
+        } catch (e) {}
+        return inputs;
+      }
+
+      function isVisible(el) {
+        if (!el || !el.ownerDocument) return false;
+        try {
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 || rect.height > 0 || el.offsetWidth > 0 || el.offsetHeight > 0;
+        } catch (e) { return true; }
+      }
+
+      function getAttrString(input) {
+        if (!input) return '';
+        return ((input.name || '') + ' ' + (input.id || '') + ' ' + (input.getAttribute('autocomplete') || '') + ' ' + (input.placeholder || '') + ' ' + (input.getAttribute('aria-label') || '') + ' ' + (input.type || '')).toLowerCase();
+      }
+
+      const activeTarget = contextTarget || (document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null);
+      let searchRoot = activeTarget ? (activeTarget.closest('form') || activeTarget.closest('[role="dialog"]') || activeTarget.parentElement || document) : document;
+
+      let allInputs = getInputsRecursive(searchRoot);
+      if (allInputs.length === 0 && searchRoot !== document) allInputs = getInputsRecursive(document);
+
+      const visibleInputs = allInputs.filter(isVisible);
+
+      let passwordInputs = visibleInputs.filter(i => {
+        const type = (i.type || '').toLowerCase();
+        const auto = (i.getAttribute('autocomplete') || '').toLowerCase();
+        return type === 'password' || auto === 'current-password' || auto === 'new-password';
       });
 
-      const passwordInputs = visibleInputs.filter(i => i.type === 'password');
-      const visiblePassword = passwordInputs[0] || allInputs.find(i => i.type === 'password');
+      let passwordInput = passwordInputs[0] || null;
+      if (activeTarget && activeTarget.type === 'password' && isVisible(activeTarget)) passwordInput = activeTarget;
 
-      let usernameInput = null;
+      let usernameCandidate = null;
 
-      if (visiblePassword) {
-        const form = visiblePassword.closest('form');
-        let candidateInputs = [];
-        if (form) {
-          candidateInputs = Array.from(form.querySelectorAll('input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])'));
-        } else {
-          candidateInputs = visibleInputs.filter(i => i.type !== 'password');
+      if (passwordInput) {
+        const form = passwordInput.closest('form');
+        let candidates = form ? Array.from(form.querySelectorAll('input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])')).filter(isVisible) : visibleInputs.filter(i => i !== passwordInput && i.type !== 'password');
+
+        if (activeTarget && activeTarget !== passwordInput && activeTarget.type !== 'password') usernameCandidate = activeTarget;
+
+        if (!usernameCandidate) {
+          usernameCandidate = candidates.find(i => {
+            const auto = (i.getAttribute('autocomplete') || '').toLowerCase();
+            return auto === 'username' || auto === 'email';
+          });
         }
 
-        const preceding = candidateInputs.filter(i => (i.compareDocumentPosition(visiblePassword) & Node.DOCUMENT_POSITION_PRECEDING) !== 0);
+        if (!usernameCandidate) {
+          const preceding = candidates.filter(i => (i.compareDocumentPosition(passwordInput) & Node.DOCUMENT_POSITION_PRECEDING) !== 0);
+          usernameCandidate = preceding.slice().reverse().find(i => {
+            const attr = getAttrString(i);
+            return i.type === 'email' || attr.includes('user') || attr.includes('email') || attr.includes('login') || attr.includes('identifier') || attr.includes('account');
+          }) || preceding[preceding.length - 1];
+        }
 
-        usernameInput = preceding.reverse().find(i => {
-          const attr = (i.name + ' ' + i.id + ' ' + (i.getAttribute('autocomplete')||'') + ' ' + (i.placeholder||'') + ' ' + (i.getAttribute('aria-label')||'')).toLowerCase();
-          return attr.includes('user') || attr.includes('email') || attr.includes('login') || attr.includes('identifier') || attr.includes('account');
-        }) || preceding[0] || candidateInputs.find(i => {
-          const attr = (i.name + ' ' + i.id + ' ' + (i.getAttribute('autocomplete')||'') + ' ' + (i.placeholder||'') + ' ' + (i.getAttribute('aria-label')||'')).toLowerCase();
-          return attr.includes('user') || attr.includes('email') || attr.includes('login') || attr.includes('identifier') || attr.includes('account');
-        }) || candidateInputs[0];
+        if (!usernameCandidate) {
+          usernameCandidate = candidates.find(i => {
+            const attr = getAttrString(i);
+            return i.type === 'email' || attr.includes('user') || attr.includes('email') || attr.includes('login') || attr.includes('identifier') || attr.includes('account');
+          }) || candidates[0] || null;
+        }
 
-        return { usernameInput, passwordInput: visiblePassword, targetInput: visiblePassword || usernameInput, form };
+        return { usernameInput: usernameCandidate, passwordInput, targetInput: activeTarget || passwordInput || usernameCandidate, form: form || (usernameCandidate && usernameCandidate.closest('form')), isUsernameFirst: false };
       } else {
-        const emailInput = visibleInputs.find(i => {
-          const attr = (i.name + ' ' + i.id + ' ' + i.type + ' ' + (i.getAttribute('autocomplete')||'') + ' ' + (i.placeholder||'') + ' ' + (i.getAttribute('aria-label')||'')).toLowerCase();
-          return i.type === 'email' || attr.includes('user') || attr.includes('email') || attr.includes('login') || attr.includes('identifier') || attr.includes('account');
-        });
-        if (emailInput) {
-          return { usernameInput: emailInput, passwordInput: null, targetInput: emailInput, form: emailInput.closest('form') };
+        let target = activeTarget && activeTarget.type !== 'password' ? activeTarget : null;
+        if (!target) {
+          const emailOrUserInputs = visibleInputs.filter(i => {
+            const attr = getAttrString(i);
+            const auto = (i.getAttribute('autocomplete') || '').toLowerCase();
+            return i.type === 'email' || auto === 'username' || auto === 'email' || attr.includes('user') || attr.includes('email') || attr.includes('login') || attr.includes('identifier') || attr.includes('account');
+          });
+          target = emailOrUserInputs[0] || visibleInputs[0] || null;
+        }
+        if (target) {
+          return { usernameInput: target, passwordInput: null, targetInput: target, form: target.closest('form'), isUsernameFirst: true };
         }
       }
       return null;
     },
     observeDynamicForms(callback) {
+      let timer = null;
       const observer = new MutationObserver((mutations) => {
-        let hasNewInputs = false;
-        for (const mutation of mutations) {
-          if (mutation.addedNodes.length) { hasNewInputs = true; break; }
+        let relevant = false;
+        for (const m of mutations) {
+          if (m.addedNodes.length > 0) {
+            for (const node of m.addedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE && (node.tagName === 'INPUT' || node.querySelector?.('input'))) {
+                relevant = true; break;
+              }
+            }
+          }
+          if (relevant) break;
         }
-        if (hasNewInputs) {
-          const fields = window.XeroxFieldDetector.findLoginFields();
-          if (fields && (fields.passwordInput || fields.usernameInput)) callback(fields);
+
+        if (relevant) {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => {
+            const fields = window.XeroxFieldDetector.findLoginFields();
+            if (fields && (fields.passwordInput || fields.usernameInput)) callback(fields);
+          }, 150);
         }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      if (document.body) observer.observe(document.body, { childList: true, subtree: true });
       return observer;
     }
   };
@@ -308,160 +413,113 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     `
 (function () {
   window.XeroxAutofill = {
+    getShadowRoot() {
+      let container = document.getElementById('xerox-shadow-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'xerox-shadow-container';
+        container.style.cssText = 'position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647;';
+        const shadowRoot = container.attachShadow({ mode: 'open' });
+        (document.body || document.documentElement).appendChild(container);
+      }
+      return container.shadowRoot;
+    },
     fillCredentials(usernameInput, passwordInput, credential) {
-      if (!credential) return;
-      if (usernameInput && credential.username) this.setInputValue(usernameInput, credential.username);
-      if (passwordInput && credential.password) this.setInputValue(passwordInput, credential.password);
+      if (!credential) return { usernameFilled: false, passwordFilled: false };
+      let usernameFilled = false, passwordFilled = false;
+      if (usernameInput && credential.username) usernameFilled = this.setInputValue(usernameInput, credential.username);
+      if (passwordInput && credential.password) passwordFilled = this.setInputValue(passwordInput, credential.password);
+      return { usernameFilled, passwordFilled };
     },
     setInputValue(inputElement, value) {
-      if (!inputElement) return;
+      if (!inputElement || typeof value !== 'string') return false;
       try {
         inputElement.focus();
         inputElement.click();
-
         const proto = Object.getPrototypeOf(inputElement);
         const descriptor = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-        if (descriptor && descriptor.set) {
-          descriptor.set.call(inputElement, value);
-        } else {
-          inputElement.value = value;
-        }
+        if (descriptor && descriptor.set) descriptor.set.call(inputElement, value);
+        else inputElement.value = value;
 
+        inputElement.dispatchEvent(new Event('focus', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('keydown', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('keypress', { bubbles: true, composed: true }));
-        inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        try {
+          inputElement.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: value }));
+        } catch (e) {
+          inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        }
         inputElement.dispatchEvent(new Event('keyup', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
+        return inputElement.value === value;
       } catch (e) {
         inputElement.value = value;
+        return inputElement.value === value;
       }
     },
     makeDraggable(element) {
-      let isDragging = false;
-      let startX = 0, startY = 0;
-      let initialLeft = 0, initialTop = 0;
-
+      let isDragging = false, startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
       const onMouseDown = (e) => {
         if (e.target.closest('.xerox-autofill-btn')) return;
-
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-
-        const rect = element.getBoundingClientRect();
-        initialLeft = rect.left;
-        initialTop = rect.top;
-
+        isDragging = true; startX = e.clientX; startY = e.clientY;
+        const rect = element.getBoundingClientRect(); initialLeft = rect.left; initialTop = rect.top;
         element.style.cursor = 'grabbing';
-        element.style.borderColor = '#60a5fa';
-        element.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.4), 0 10px 25px rgba(0,0,0,0.8)';
-
         document.addEventListener('mousemove', onMouseMove, true);
         document.addEventListener('mouseup', onMouseUp, true);
         e.preventDefault();
       };
-
       const onMouseMove = (e) => {
         if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        const newLeft = Math.max(5, Math.min(window.innerWidth - element.offsetWidth - 5, initialLeft + dx));
-        const newTop = Math.max(5, Math.min(window.innerHeight - element.offsetHeight - 5, initialTop + dy));
-
-        element.style.left = newLeft + 'px';
-        element.style.top = newTop + 'px';
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        element.style.left = Math.max(5, Math.min(window.innerWidth - element.offsetWidth - 5, initialLeft + dx)) + 'px';
+        element.style.top = Math.max(5, Math.min(window.innerHeight - element.offsetHeight - 5, initialTop + dy)) + 'px';
       };
-
       const onMouseUp = () => {
-        if (!isDragging) return;
-        isDragging = false;
-        element.style.cursor = 'grab';
-        element.style.borderColor = '#3b82f6';
-        element.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.6)';
-
+        if (!isDragging) return; isDragging = false; element.style.cursor = 'grab';
         document.removeEventListener('mousemove', onMouseMove, true);
         document.removeEventListener('mouseup', onMouseUp, true);
       };
-
       element.addEventListener('mousedown', onMouseDown);
     },
     attachAutofillBadge(targetInput, onBadgeClick) {
-      if (document.getElementById('xerox-floating-badge')) return;
-      if (!targetInput) return;
-
-      const wrapper = document.createElement('div');
-      wrapper.id = 'xerox-floating-badge';
-      wrapper.style.cssText = \`
-        position: fixed;
-        z-index: 2147483647;
-        cursor: grab;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        background: #111827;
-        border: 1.5px solid #3b82f6;
-        border-radius: 8px;
-        padding: 4px 10px;
-        font-family: system-ui, -apple-system, sans-serif;
-        font-size: 12px;
-        color: #f3f4f6;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.6), 0 8px 10px -6px rgba(0,0,0,0.5);
-        user-select: none;
-        transition: border-color 0.2s, box-shadow 0.2s;
-      \`;
-
-      wrapper.innerHTML = \`
-        <span style="font-size: 12px; opacity: 0.7; cursor: grab;" title="Drag to move">⋮⋮</span>
-        <span style="font-size: 13px;">🔐</span>
-        <span style="font-weight: 700; font-size: 11px; color: #60a5fa; letter-spacing: 0.3px;">Xerox</span>
-        <button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; margin-left: 2px; cursor: pointer; transition: background 0.15s;">Autofill</button>
-      \`;
-
-      const updatePosition = () => {
-        if (!targetInput || !document.body.contains(targetInput)) {
-          wrapper.style.display = 'none';
-          return;
-        }
-        const rect = targetInput.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) {
-          wrapper.style.display = 'none';
-          return;
+      const shadow = this.getShadowRoot();
+      let wrapper = shadow.getElementById('xerox-floating-badge');
+      if (wrapper) {
+        const btn = wrapper.querySelector('.xerox-autofill-btn');
+        if (btn) {
+          const newBtn = btn.cloneNode(true);
+          btn.parentNode.replaceChild(newBtn, btn);
+          newBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); onBadgeClick(); });
         }
         wrapper.style.display = 'flex';
-        const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
-        const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + (rect.height / 2) - 15));
-        wrapper.style.left = left + 'px';
-        wrapper.style.top = top + 'px';
+        return;
+      }
+      wrapper = document.createElement('div');
+      wrapper.id = 'xerox-floating-badge';
+      wrapper.style.cssText = 'position:fixed;z-index:2147483647;cursor:grab;display:flex;align-items:center;gap:6px;background:#111827;border:1.5px solid #3b82f6;border-radius:8px;padding:4px 10px;font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#f3f4f6;box-shadow:0 10px 25px -5px rgba(0,0,0,0.6);user-select:none;';
+      wrapper.innerHTML = \`<span style="font-size: 12px; opacity: 0.7; cursor: grab;">⋮⋮</span><span style="font-size: 13px;">🔐</span><span style="font-weight: 700; font-size: 11px; color: #60a5fa;">Xerox</span><button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">Autofill</button>\`;
+
+      const updatePosition = () => {
+        if (!targetInput || !document.body.contains(targetInput)) { wrapper.style.display = 'none'; return; }
+        const rect = targetInput.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) { wrapper.style.display = 'none'; return; }
+        wrapper.style.display = 'flex';
+        wrapper.style.left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110)) + 'px';
+        wrapper.style.top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + rect.height / 2 - 15)) + 'px';
       };
 
       updatePosition();
       window.addEventListener('scroll', updatePosition, { passive: true });
       window.addEventListener('resize', updatePosition, { passive: true });
-
-      (document.body || document.documentElement).appendChild(wrapper);
-
+      shadow.appendChild(wrapper);
       this.makeDraggable(wrapper);
-
-      const btn = wrapper.querySelector('.xerox-autofill-btn');
-      if (btn) {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onBadgeClick();
-        });
-      }
-
-      let dragMoved = false;
-      wrapper.addEventListener('mousedown', () => { dragMoved = false; });
-      wrapper.addEventListener('mousemove', () => { dragMoved = true; });
-      wrapper.addEventListener('click', (e) => {
-        if (e.target.closest('.xerox-autofill-btn')) return;
-        if (!dragMoved) {
-          onBadgeClick();
-        }
-      });
+      wrapper.querySelector('.xerox-autofill-btn').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); onBadgeClick(); });
+    },
+    hideBadge() {
+      const shadow = this.getShadowRoot();
+      const badge = shadow.getElementById('xerox-floating-badge');
+      if (badge) badge.style.display = 'none';
     }
   };
 })();
@@ -474,53 +532,68 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 (function () {
   let fields = null;
 
-  function checkAndSyncWebVault() {
-    try {
-      const rawMeta = localStorage.getItem('xerox_vault_meta_sync');
-      if (rawMeta) {
-        const meta = JSON.parse(rawMeta);
-        if (meta && meta.encryptedVault) {
-          chrome.runtime.sendMessage({
-            action: 'SYNC_VAULT_FROM_WEBAPP',
-            payload: { vaultMeta: meta, encryptedVault: meta.encryptedVault }
-          });
-        }
-      }
-    } catch (e) {}
+  const TRUSTED_XEROX_ORIGINS = [
+    'https://xerox-orcin.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8089',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8089'
+  ];
+
+  function isTrustedXeroxOrigin() {
+    const origin = (window.location.origin || '').toLowerCase();
+    const host = (window.location.hostname || '').toLowerCase();
+    if (TRUSTED_XEROX_ORIGINS.includes(origin)) return true;
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    return false;
   }
 
-  function initDetector() {
-    checkAndSyncWebVault();
-
-    fields = window.XeroxFieldDetector.findLoginFields();
-    if (fields && fields.targetInput) { setupBadge(fields); }
-    else {
-      window.XeroxFieldDetector.observeDynamicForms((newFields) => {
-        fields = newFields;
-        if (fields && fields.targetInput) setupBadge(fields);
-      });
+  function handleFocusIn(e) {
+    const target = e.composedPath()[0] || e.target;
+    if (!target || target.tagName !== 'INPUT') return;
+    const liveFields = window.XeroxFieldDetector.findLoginFields(target);
+    if (liveFields && (liveFields.passwordInput || liveFields.usernameInput)) {
+      fields = liveFields;
+      if (target === liveFields.passwordInput || target === liveFields.usernameInput) {
+        setupBadge(liveFields, target);
+      }
     }
   }
 
+  function initDetector() {
+    window.XeroxFieldDetector.observeDynamicForms((newFields) => {
+      fields = newFields;
+      if (fields && (fields.passwordInput || fields.usernameInput)) setupBadge(fields);
+    });
+    const initialFields = window.XeroxFieldDetector.findLoginFields();
+    if (initialFields && (initialFields.passwordInput || initialFields.usernameInput)) {
+      fields = initialFields;
+      setupBadge(initialFields);
+    }
+    document.addEventListener('focusin', handleFocusIn, true);
+  }
+
   window.addEventListener('message', (event) => {
+    if (!isTrustedXeroxOrigin()) return;
+    if (event.origin && !isTrustedXeroxOrigin() && !event.origin.includes('localhost') && !event.origin.includes('127.0.0.1')) return;
+
     if (event.data && event.data.type === 'XEROX_SYNC_VAULT') {
       const { vaultMeta, encryptedVault } = event.data;
-      if (vaultMeta && encryptedVault) {
-        chrome.runtime.sendMessage({
-          action: 'SYNC_VAULT_FROM_WEBAPP',
-          payload: { vaultMeta, encryptedVault }
-        });
+      if (vaultMeta || encryptedVault) {
+        chrome.runtime.sendMessage({ action: 'SYNC_VAULT_FROM_WEBAPP', payload: { vaultMeta, encryptedVault } });
       }
     }
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'EXECUTE_AUTOFILL' && message.credential) {
-      const liveFields = window.XeroxFieldDetector.findLoginFields() || fields;
-      if (liveFields) {
-        window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, message.credential);
-        showBriefToast('✓ Xerox Autofilled Credentials!');
-        sendResponse({ success: true });
+      const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
+      const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || fields;
+      if (liveFields && (liveFields.usernameInput || liveFields.passwordInput)) {
+        const res = window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, message.credential);
+        sendResponse({ success: true, details: res });
       } else {
         sendResponse({ success: false, error: 'No login fields found on page' });
       }
@@ -528,224 +601,107 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   });
 
-  function setupBadge(loginFields) {
-    const target = loginFields.passwordInput || loginFields.usernameInput || loginFields.targetInput;
-    window.XeroxAutofill.attachAutofillBadge(target, () => {
-      handleAutofillTrigger(loginFields);
-    });
+  function setupBadge(loginFields, focusTarget) {
+    const target = focusTarget || loginFields.passwordInput || loginFields.usernameInput || loginFields.targetInput;
+    if (!target) return;
+    window.XeroxAutofill.attachAutofillBadge(target, () => handleAutofillTrigger(loginFields));
   }
 
   function handleAutofillTrigger(loginFields) {
     const currentUrl = window.location.href;
-    const liveFields = window.XeroxFieldDetector.findLoginFields() || loginFields;
+    const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
+    const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
 
     chrome.runtime.sendMessage({ action: 'GET_MATCHING_CREDENTIALS', payload: { url: currentUrl } }, (response) => {
-      if (!response) {
-        showNoticeModal('Extension Error', 'Background service worker is unresponsive. Please reload the page.');
-        return;
-      }
-
+      if (!response) return;
       if (!response.isUnlocked) {
         showInlineUnlockModal((masterPassword, setError) => {
           chrome.runtime.sendMessage({ action: 'UNLOCK_VAULT', payload: { masterPassword } }, (unlockRes) => {
-            if (unlockRes && unlockRes.success) {
-              handleAutofillTrigger(liveFields);
-            } else {
-              setError(unlockRes?.error || 'Incorrect master password.');
-            }
+            if (unlockRes && unlockRes.success) handleAutofillTrigger(liveFields);
+            else setError(unlockRes?.error || 'Incorrect master password.');
           });
         });
         return;
       }
-
       const matches = response.matches || [];
-
       if (matches.length === 1) {
         authorizeAndFill(matches[0].id, liveFields);
       } else if (matches.length > 1) {
-        showAccountPickerModal(matches, (selectedId) => authorizeAndFill(selectedId, liveFields));
+        showAccountPickerModal(matches, (selectedId, allowCrossDomain) => authorizeAndFill(selectedId, liveFields, allowCrossDomain));
       } else {
-        chrome.runtime.sendMessage({ action: 'GET_ALL_CREDENTIALS_SUMMARY' }, (allRes) => {
-          const allItems = (allRes && allRes.credentials) || [];
-          if (allItems.length === 0) {
-            showNoticeModal('No Vault Credentials', 'No credentials found in your Xerox Vault.\\n\\nOpen your Xerox Web Vault tab to add credentials!');
-          } else {
-            showAccountPickerModal(allItems, (selectedId) => authorizeAndFill(selectedId, liveFields), true);
-          }
-        });
+        showNoMatchesModal(currentUrl, liveFields);
       }
     });
   }
 
-  function authorizeAndFill(credentialId, loginFields) {
-    chrome.runtime.sendMessage({ action: 'AUTHORIZE_AUTOFILL', payload: { id: credentialId, url: window.location.href } }, (res) => {
+  function authorizeAndFill(credentialId, loginFields, allowCrossDomain = false) {
+    chrome.runtime.sendMessage({ action: 'AUTHORIZE_AUTOFILL', payload: { id: credentialId, url: window.location.href, allowCrossDomain } }, (res) => {
       if (res && res.success && res.credential) {
-        const liveFields = window.XeroxFieldDetector.findLoginFields() || loginFields;
-        window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, res.credential);
-        showBriefToast('✓ Xerox Autofilled Credentials!');
-      } else {
-        showNoticeModal('Autofill Error', res?.error || 'Failed to fill credential.');
+        const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null;
+        const liveFields = window.XeroxFieldDetector.findLoginFields(activeInput) || loginFields;
+        if (liveFields) window.XeroxAutofill.fillCredentials(liveFields.usernameInput, liveFields.passwordInput, res.credential);
       }
     });
   }
 
-  function showInlineUnlockModal(onSubmit) {
-    const existing = document.getElementById('xerox-inline-unlock-modal');
+  function showNoMatchesModal(currentUrl, liveFields) {
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-no-matches-modal');
     if (existing) existing.remove();
 
     const overlay = document.createElement('div');
-    overlay.id = 'xerox-inline-unlock-modal';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
+    overlay.id = 'xerox-no-matches-modal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML = \`<div style="background:#111827;border:1px solid #374151;border-radius:14px;padding:22px;width:340px;color:#f3f4f6;display:flex;flex-direction:column;gap:14px;"><div style="font-weight:700;color:#60a5fa;">🔐 No Matching Credential</div><div style="font-size:12px;color:#d1d5db;">No credential found for this domain.</div><button id="xerox-pick-all" style="background:#1f2937;border:1px solid #4b5563;color:#60a5fa;border-radius:8px;padding:9px;font-size:12px;cursor:pointer;">Choose another credential...</button><button id="xerox-cancel-no-match" style="background:#374151;border:none;color:#fff;border-radius:8px;padding:8px;font-size:12px;cursor:pointer;">Cancel</button></div>\`;
+    shadow.appendChild(overlay);
 
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#111827;border:1px solid #374151;border-radius:14px;padding:22px;width:320px;color:#f3f4f6;box-shadow:0 20px 25px -5px rgba(0,0,0,0.7);display:flex;flex-direction:column;gap:14px;';
-
-    box.innerHTML = \`
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:18px;">🔐</span>
-          <span style="font-weight:700;font-size:14px;color:#60a5fa;">Unlock Xerox Vault</span>
-        </div>
-        <button id="xerox-unlock-close" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;">✕</button>
-      </div>
-      <div style="font-size:12px;color:#9ca3af;line-height:1.4;">Enter your Master Password to unlock your vault and autofill this form.</div>
-      <form id="xerox-inline-unlock-form" style="display:flex;flex-direction:column;gap:10px;">
-        <input type="password" id="xerox-inline-master-pass" placeholder="Master Password" style="width:100%;background:#1f2937;border:1px solid #4b5563;border-radius:8px;padding:10px;color:#fff;font-size:13px;outline:none;box-sizing:border-box;">
-        <div id="xerox-inline-error" style="color:#f87171;font-size:11px;display:none;line-height:1.3;"></div>
-        <button type="submit" style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;font-size:13px;cursor:pointer;margin-top:4px;">Unlock & Autofill</button>
-      </form>
-    \`;
-
-    overlay.appendChild(box);
-    (document.body || document.documentElement).appendChild(overlay);
-
-    const closeBtn = document.getElementById('xerox-unlock-close');
-    if (closeBtn) closeBtn.onclick = () => overlay.remove();
-
-    const form = document.getElementById('xerox-inline-unlock-form');
-    const input = document.getElementById('xerox-inline-master-pass');
-    const errDiv = document.getElementById('xerox-inline-error');
-
-    setTimeout(() => input.focus(), 50);
-
-    form.onsubmit = (e) => {
-      e.preventDefault();
-      const pwd = input.value;
-      if (!pwd) return;
-      errDiv.style.display = 'none';
-      onSubmit(pwd, (errMsg) => {
-        errDiv.textContent = errMsg;
-        errDiv.style.display = 'block';
-      });
+    shadow.getElementById('xerox-cancel-no-match').onclick = () => overlay.remove();
+    shadow.getElementById('xerox-pick-all').onclick = () => {
       overlay.remove();
+      chrome.runtime.sendMessage({ action: 'GET_ALL_CREDENTIALS_SUMMARY' }, (allRes) => {
+        const allItems = (allRes && allRes.credentials) || [];
+        showAccountPickerModal(allItems, (selectedId) => authorizeAndFill(selectedId, liveFields, true), true);
+      });
+    };
+  }
+
+  function showInlineUnlockModal(onSubmit) {
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-inline-unlock-modal');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'xerox-inline-unlock-modal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML = \`<div style="background:#111827;border:1px solid #374151;border-radius:14px;padding:22px;width:320px;color:#f3f4f6;display:flex;flex-direction:column;gap:14px;"><div style="font-weight:700;color:#60a5fa;">🔐 Unlock Vault</div><form id="xerox-unlock-form" style="display:flex;flex-direction:column;gap:10px;"><input type="password" id="xerox-pass-in" placeholder="Master Password" style="background:#1f2937;border:1px solid #4b5563;border-radius:8px;padding:10px;color:#fff;"><button type="submit" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;">Unlock & Autofill</button></form></div>\`;
+    shadow.appendChild(overlay);
+    shadow.getElementById('xerox-unlock-form').onsubmit = (e) => {
+      e.preventDefault();
+      const pwd = shadow.getElementById('xerox-pass-in').value;
+      if (pwd) onSubmit(pwd, () => {});
     };
   }
 
   function showAccountPickerModal(matches, onSelect, isAllFallback = false) {
-    const existing = document.getElementById('xerox-account-picker');
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-account-picker');
     if (existing) existing.remove();
-
     const overlay = document.createElement('div');
     overlay.id = 'xerox-account-picker';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
-
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#111827;border:1px solid #374151;border-radius:14px;padding:20px;width:340px;color:#f3f4f6;box-shadow:0 20px 25px -5px rgba(0,0,0,0.8);max-height:80vh;display:flex;flex-direction:column;';
-
-    const titleText = isAllFallback ? 'Select Account to Autofill' : 'Matching Xerox Credentials';
-    const subText = isAllFallback ? 'Pick any credential from your vault to autofill:' : 'Select account to autofill:';
-
-    let html = \`
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <span style="font-weight:700;font-size:14px;color:#60a5fa;">🔐 \${titleText}</span>
-        <button id="xerox-picker-close" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;">✕</button>
-      </div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">\${subText}</div>
-      <input type="text" id="xerox-picker-search" placeholder="Search accounts..." style="width:100%;background:#1f2937;border:1px solid #4b5563;border-radius:6px;padding:8px 10px;color:#fff;font-size:12px;outline:none;margin-bottom:10px;box-sizing:border-box;">
-      <div id="xerox-picker-list" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:300px;padding-right:4px;">
-    \`;
-
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    let html = \`<div style="background:#111827;border:1px solid #374151;border-radius:14px;padding:20px;width:340px;color:#f3f4f6;max-height:80vh;display:flex;flex-direction:column;"><div style="font-weight:700;color:#60a5fa;margin-bottom:10px;">🔐 Select Account</div><div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;">\`;
     matches.forEach(m => {
-      html += \`
-        <button class="xerox-picker-item" data-id="\${m.id}" data-search="\${(m.websiteName + ' ' + m.username + ' ' + (m.websiteUrl||'')).toLowerCase()}" style="background:#1f2937;border:1px solid #374151;border-radius:8px;padding:10px 12px;text-align:left;color:#fff;cursor:pointer;font-size:13px;display:flex;flex-direction:column;transition:background 0.15s, border-color 0.15s;">
-          <span style="font-weight:600;color:#f3f4f6;">\${m.websiteName}</span>
-          <span style="font-size:11px;color:#9ca3af;margin-top:2px;">\${m.username || 'No username'}</span>
-        </button>
-      \`;
+      html += \`<button class="xerox-picker-item" data-id="\${m.id}" style="background:#1f2937;border:1px solid #374151;border-radius:8px;padding:10px;text-align:left;color:#fff;cursor:pointer;"><div style="font-weight:600;">\${m.websiteName}</div><div style="font-size:11px;color:#9ca3af;">\${m.username}</div></button>\`;
     });
-
-    html += '</div>';
-    box.innerHTML = html;
-    overlay.appendChild(box);
-    (document.body || document.documentElement).appendChild(overlay);
-
-    document.getElementById('xerox-picker-close').onclick = () => overlay.remove();
-
-    const searchInput = document.getElementById('xerox-picker-search');
-    const items = box.querySelectorAll('.xerox-picker-item');
-
-    if (items.length > 5) { searchInput.focus(); }
-
-    searchInput.oninput = () => {
-      const query = searchInput.value.toLowerCase().trim();
-      items.forEach(item => {
-        const text = item.dataset.search || '';
-        if (!query || text.includes(query)) {
-          item.style.display = 'flex';
-        } else {
-          item.style.display = 'none';
-        }
-      });
-    };
-
-    items.forEach(btn => {
-      btn.onclick = () => {
-        overlay.remove();
-        onSelect(btn.dataset.id);
-      };
+    html += '</div></div>';
+    overlay.innerHTML = html;
+    shadow.appendChild(overlay);
+    overlay.querySelectorAll('.xerox-picker-item').forEach(b => {
+      b.onclick = () => { overlay.remove(); onSelect(b.dataset.id, isAllFallback); };
     });
   }
 
-  function showNoticeModal(title, message) {
-    const existing = document.getElementById('xerox-notice-modal');
-    if (existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'xerox-notice-modal';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
-
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#111827;border:1px solid #374151;border-radius:12px;padding:20px;width:320px;color:#f3f4f6;box-shadow:0 10px 25px rgba(0,0,0,0.8);display:flex;flex-direction:column;gap:12px;';
-
-    box.innerHTML = \`
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:700;font-size:14px;color:#60a5fa;">🔐 \${title}</span>
-        <button id="xerox-notice-close" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;">✕</button>
-      </div>
-      <div style="font-size:12px;color:#d1d5db;white-space:pre-wrap;line-height:1.5;">\${message}</div>
-      <button id="xerox-notice-ok" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;align-self:flex-end;">OK</button>
-    \`;
-
-    overlay.appendChild(box);
-    (document.body || document.documentElement).appendChild(overlay);
-
-    document.getElementById('xerox-notice-close').onclick = () => overlay.remove();
-    document.getElementById('xerox-notice-ok').onclick = () => overlay.remove();
-  }
-
-  function showBriefToast(text) {
-    const toast = document.createElement('div');
-    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;border:1.5px solid #3b82f6;color:#38bdf8;padding:10px 16px;border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;z-index:2147483647;box-shadow:0 10px 25px rgba(0,0,0,0.7);transition:opacity 0.3s;';
-    toast.textContent = text;
-    (document.body || document.documentElement).appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 300);
-    }, 2200);
-  }
-
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initDetector); }
-  else { initDetector(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initDetector);
+  else initDetector();
 })();
 `
   );
@@ -767,44 +723,20 @@ export function extractDomain(urlOrHostname) {
   }
 }
 
-export function getRootDomain(hostname) {
-  const cleanHost = extractDomain(hostname);
-  if (!cleanHost) return '';
-  const parts = cleanHost.split('.');
-  if (parts.length <= 2) return cleanHost;
-  return parts.slice(-2).join('.');
-}
-
-function cleanString(str) {
-  return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
 export function isSafeDomainMatch(pageUrl, credentialUrl) {
-  if (!pageUrl) return false;
+  if (!pageUrl || !credentialUrl) return false;
   const pageHost = extractDomain(pageUrl);
-  const pageRoot = getRootDomain(pageHost);
-
-  if (!credentialUrl) return false;
   const credHost = extractDomain(credentialUrl);
-  const credRoot = getRootDomain(credHost);
-
-  if (pageHost && credHost && pageHost === credHost) return true;
-  if (pageRoot && credRoot && pageRoot === credRoot && pageRoot.length > 2) return true;
-  if (pageRoot && credHost && (credHost.includes(pageRoot) || pageHost.includes(credHost))) return true;
-
-  const cleanPage = cleanString(pageHost);
-  const cleanCred = cleanString(credentialUrl);
-  if (cleanPage && cleanCred && cleanCred.length >= 3) {
-    if (cleanPage.includes(cleanCred) || cleanCred.includes(cleanPage)) return true;
-  }
-
+  if (!pageHost || !credHost) return false;
+  if (pageHost === credHost) return true;
+  if (pageHost.endsWith('.' + credHost)) return true;
   return false;
 }
 
 export function filterMatchingCredentials(pageUrl, credentials) {
   if (!pageUrl || !Array.isArray(credentials)) return [];
   return credentials.filter((item) => {
-    const target = item.websiteUrl || item.url || item.websiteName || item.title;
+    const target = item.websiteUrl || item.url || item.websiteName;
     return isSafeDomainMatch(pageUrl, target);
   });
 }
@@ -815,7 +747,6 @@ export function filterMatchingCredentials(pageUrl, credentials) {
     'secure-storage.js',
     `
 const PBKDF2_ITERATIONS = 100000;
-
 function base64ToArrayBuffer(base64) {
   if (!base64) return new ArrayBuffer(0);
   const binary = atob(base64);
@@ -823,52 +754,21 @@ function base64ToArrayBuffer(base64) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
 }
-
 export async function deriveKeyGcm(masterPassword, saltUint8) {
   const enc = new TextEncoder();
   const passwordKey = await crypto.subtle.importKey('raw', enc.encode(masterPassword), { name: 'PBKDF2' }, false, ['deriveKey']);
   return await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: saltUint8, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, passwordKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
-
-export async function deriveKeyCbc(masterPassword, saltUint8) {
-  const enc = new TextEncoder();
-  const passwordKey = await crypto.subtle.importKey('raw', enc.encode(masterPassword), { name: 'PBKDF2' }, false, ['deriveKey']);
-  return await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: saltUint8, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, passwordKey, { name: 'AES-CBC', length: 256 }, false, ['encrypt', 'decrypt']);
-}
-
 export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassword) {
-  if (!cipherText || !ivBase64 || !saltBase64) {
-    throw new Error('Incomplete vault payload. Please open Xerox Web Vault tab to sync.');
-  }
-
+  if (!cipherText || !ivBase64 || !saltBase64) throw new Error('Incomplete vault payload.');
   const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
   const iv = new Uint8Array(base64ToArrayBuffer(ivBase64));
   const rawCipher = cipherText.startsWith('cjs:') ? cipherText.slice(4) : cipherText;
   const cipherBuffer = base64ToArrayBuffer(rawCipher);
-
-  let lastError = null;
-
-  // Try 1: WebCrypto AES-GCM
-  try {
-    const keyGcm = await deriveKeyGcm(masterPassword, salt);
-    const decryptedBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, keyGcm, cipherBuffer);
-    const decoder = new TextDecoder();
-    return JSON.parse(decoder.decode(decryptedBuffer));
-  } catch (e1) {
-    lastError = e1;
-  }
-
-  // Try 2: WebCrypto AES-CBC
-  try {
-    const keyCbc = await deriveKeyCbc(masterPassword, salt);
-    const decryptedCbc = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, keyCbc, cipherBuffer);
-    const decoder = new TextDecoder();
-    return JSON.parse(decoder.decode(decryptedCbc));
-  } catch (e2) {
-    lastError = e2;
-  }
-
-  throw new Error('Incorrect master password or corrupted vault.');
+  const keyGcm = await deriveKeyGcm(masterPassword, salt);
+  const decryptedBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, keyGcm, cipherBuffer);
+  const decoder = new TextDecoder();
+  return JSON.parse(decoder.decode(decryptedBuffer));
 }
 `
   );
@@ -877,17 +777,7 @@ export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassw
   const popupFolder = zip.folder('popup');
   popupFolder?.file(
     'popup.html',
-    `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Xerox</title><link rel="stylesheet" href="popup.css"></head><body>
-      <div class="popup-container">
-        <header class="popup-header"><div class="brand"><span class="logo-icon">🔐</span><span class="brand-title">Xerox</span></div><div id="status-badge" class="status-badge locked"><span id="status-text">Locked</span></div></header>
-        <main class="popup-main">
-          <div id="unlock-section" class="view-section"><p class="section-desc">Enter Master Password to unlock local Xerox vault:</p><div class="input-group"><input type="password" id="master-password-input" placeholder="Master Password" autofocus /><button id="unlock-btn" class="btn btn-primary">Unlock Vault</button></div><p id="error-msg" class="error-msg"></p></div>
-          <div id="unlocked-section" class="view-section hidden"><div class="tab-domain-box"><span class="domain-label">Current Site:</span><span id="current-domain" class="domain-value">loading...</span></div><div id="credentials-container" class="credentials-list"></div><div id="no-matches" class="no-matches hidden"><p>No matching credentials found for this domain.</p></div></div>
-        </main>
-        <footer class="popup-footer"><button id="open-vault-btn" class="btn btn-ghost">Open Web Vault</button><button id="lock-btn" class="btn btn-ghost danger hidden">Lock Vault</button></footer>
-      </div>
-      <script type="module" src="popup.js"></script>
-    </body></html>`
+    `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Xerox</title><link rel="stylesheet" href="popup.css"></head><body><div class="popup-container"><header class="popup-header"><div class="brand"><span class="logo-icon">🔐</span><span class="brand-title">Xerox</span></div><div id="status-badge" class="status-badge locked"><span id="status-text">Locked</span></div></header><main class="popup-main"><div id="unlock-section" class="view-section"><p class="section-desc">Enter Master Password to unlock local Xerox vault:</p><div class="input-group"><input type="password" id="master-password-input" placeholder="Master Password" autofocus /><button id="unlock-btn" class="btn btn-primary">Unlock Vault</button></div><p id="error-msg" class="error-msg"></p></div><div id="unlocked-section" class="view-section hidden"><div class="tab-domain-box"><span class="domain-label">Current Site:</span><span id="current-domain" class="domain-value">loading...</span></div><div id="credentials-container" class="credentials-list"></div><div id="no-matches" class="no-matches hidden"><p>No matching credentials found for this domain.</p></div></div></main><footer class="popup-footer"><button id="open-vault-btn" class="btn btn-ghost">Open Web Vault</button><button id="lock-btn" class="btn btn-ghost danger hidden">Lock Vault</button></footer></div><script type="module" src="popup.js"></script></body></html>`
   );
 
   popupFolder?.file(
@@ -935,7 +825,6 @@ export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassw
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         activeTab = tabs[0];
       } catch (e) {}
-
       const currentUrl = activeTab?.url || '';
 
       checkStatus();
@@ -969,7 +858,7 @@ export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassw
         chrome.runtime.sendMessage({ action: 'LOCK_VAULT' }, () => setLockedUI());
       });
       openVaultBtn.addEventListener('click', () => {
-        chrome.tabs.create({ url: 'https://ais-pre-x7uavyhknkd65sr2vtb34y-890638532946.asia-southeast1.run.app' });
+        chrome.tabs.create({ url: 'https://xerox-orcin.vercel.app' });
       });
       function loadMatchingCredentials() {
         currentDomainEl.textContent = 'Loading...'; credentialsContainer.innerHTML = ''; noMatchesEl.classList.add('hidden');
@@ -984,7 +873,12 @@ export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassw
               chrome.runtime.sendMessage({ action: 'AUTHORIZE_AUTOFILL', payload: { id: item.id, url: currentUrl } }, (fillRes) => {
                 if (fillRes && fillRes.success) {
                   if (activeTab && activeTab.id) {
-                    chrome.tabs.sendMessage(activeTab.id, { action: 'EXECUTE_AUTOFILL', credential: fillRes.credential });
+                    chrome.tabs.sendMessage(activeTab.id, { action: 'EXECUTE_AUTOFILL', credential: fillRes.credential }, async (res2) => {
+                      if (chrome.runtime.lastError && (currentUrl.startsWith('http://') || currentUrl.startsWith('https://'))) {
+                        await chrome.scripting.executeScript({ target: { tabId: activeTab.id }, files: ['content/field-detector.js', 'content/autofill.js', 'content/content-script.js'] });
+                        chrome.tabs.sendMessage(activeTab.id, { action: 'EXECUTE_AUTOFILL', credential: fillRes.credential });
+                      }
+                    });
                   }
                   window.close();
                 }

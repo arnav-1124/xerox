@@ -1,16 +1,26 @@
 /**
- * Strict domain and origin matching for safe autofill
+ * Strict deterministic domain and origin matching for safe autofill.
+ * Avoids fuzzy or insecure substring matches.
  */
 
 export function extractDomain(urlOrHostname) {
   if (!urlOrHostname) return '';
   try {
     let raw = urlOrHostname.trim().toLowerCase();
-    if (raw.includes('://')) raw = new URL(raw).hostname;
-    else if (raw.includes('/')) raw = raw.split('/')[0];
-    return raw.split(':')[0].replace(/^www\./, '');
+    if (raw.includes('://')) {
+      raw = new URL(raw).hostname;
+    } else {
+      if (raw.includes('/')) raw = raw.split('/')[0];
+      if (raw.includes('?')) raw = raw.split('?')[0];
+      if (raw.includes('#')) raw = raw.split('#')[0];
+    }
+    // Remove port if present
+    raw = raw.split(':')[0];
+    // Remove leading www.
+    return raw.replace(/^www\./, '');
   } catch (e) {
-    return urlOrHostname.trim().toLowerCase().split('/')[0].split(':')[0].replace(/^www\./, '');
+    let fallback = urlOrHostname.trim().toLowerCase().split('/')[0].split(':')[0];
+    return fallback.replace(/^www\./, '');
   }
 }
 
@@ -22,36 +32,29 @@ export function getRootDomain(hostname) {
   return parts.slice(-2).join('.');
 }
 
-function cleanString(str) {
-  return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
 export function isSafeDomainMatch(pageUrl, credentialUrl) {
-  if (!pageUrl) return false;
+  if (!pageUrl || !credentialUrl) return false;
+  
   const pageHost = extractDomain(pageUrl);
-  const pageRoot = getRootDomain(pageHost);
-
-  if (!credentialUrl) return false;
   const credHost = extractDomain(credentialUrl);
-  const credRoot = getRootDomain(credHost);
 
-  if (pageHost && credHost && pageHost === credHost) return true;
-  if (pageRoot && credRoot && pageRoot === credRoot && pageRoot.length > 2) return true;
-  if (pageRoot && credHost && (credHost.includes(pageRoot) || pageHost.includes(credHost))) return true;
+  if (!pageHost || !credHost) return false;
 
-  const cleanPage = cleanString(pageHost);
-  const cleanCred = cleanString(credentialUrl);
-  if (cleanPage && cleanCred && cleanCred.length >= 3) {
-    if (cleanPage.includes(cleanCred) || cleanCred.includes(cleanPage)) return true;
-  }
+  // 1. Exact match (e.g. github.com === github.com or sub.github.com === sub.github.com)
+  if (pageHost === credHost) return true;
 
+  // 2. Strict subdomain match: pageHost is a legitimate subdomain of credHost
+  // e.g. login.github.com is a subdomain of github.com
+  if (pageHost.endsWith('.' + credHost)) return true;
+
+  // Reject all fuzzy/substring matches (e.g. github.com.attacker.com or attacker-github.com)
   return false;
 }
 
 export function filterMatchingCredentials(pageUrl, credentials) {
   if (!pageUrl || !Array.isArray(credentials)) return [];
   return credentials.filter((item) => {
-    const target = item.websiteUrl || item.url || item.websiteName || item.title;
+    const target = item.websiteUrl || item.url || item.websiteName;
     return isSafeDomainMatch(pageUrl, target);
   });
 }

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Xerox Autofill End-to-End Test Suite</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 24px;
+      margin: 0;
+    }
+    h1 { color: #38bdf8; }
+    .test-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .test-section h3 {
+      margin-top: 0;
+      color: #818cf8;
+    }
+    .form-group {
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    label {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    input {
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: #fff;
+      font-size: 14px;
+      width: 280px;
+    }
+    button {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .react-state-display {
+      font-size: 12px;
+      color: #4ade80;
+      font-family: monospace;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔐 Xerox Browser Autofill Verification Suite</h1>
+  <p>Test page covering 10 real-world autofill scenarios.</p>
+
+  <!-- Scenario 1: Standard login form -->
+  <div class="test-section" id="section-standard">
+    <h3>Test 1: Standard Form (autocomplete attributes)</h3>
+    <form id="form-standard" onsubmit="event.preventDefault()">
+      <div class="form-group">
+        <label for="std-user">Username</label>
+        <input type="text" id="std-user" name="username" autocomplete="username" placeholder="Enter username">
+      </div>
+      <div class="form-group">
+        <label for="std-pass">Password</label>
+        <input type="password" id="std-pass" name="password" autocomplete="current-password" placeholder="Enter password">
+      </div>
+      <button type="submit">Log In</button>
+    </form>
+  </div>
+
+  <!-- Scenario 2: Non-standard random names & IDs -->
+  <div class="test-section" id="section-random">
+    <h3>Test 2: Non-standard Field Identifiers</h3>
+    <form id="form-random" onsubmit="event.preventDefault()">
+      <div class="form-group">
+        <label for="xyz_123">Identifier</label>
+        <input type="text" id="xyz_123" name="x_usr_field" placeholder="Account email or login">
+      </div>
+      <div class="form-group">
+        <label for="abc_999">Secret Code</label>
+        <input type="password" id="abc_999" name="x_pwd_field" placeholder="Password">
+      </div>
+      <button type="submit">Sign In</button>
+    </form>
+  </div>
+
+  <!-- Scenario 3: React-simulated controlled input -->
+  <div class="test-section" id="section-react">
+    <h3>Test 3: React-Controlled Inputs</h3>
+    <form id="form-react" onsubmit="event.preventDefault()">
+      <div class="form-group">
+        <label for="react-user">User Account</label>
+        <input type="text" id="react-user" name="react_user" placeholder="React Username">
+        <div class="react-state-display" id="react-user-state">State: [empty]</div>
+      </div>
+      <div class="form-group">
+        <label for="react-pass">React Password</label>
+        <input type="password" id="react-pass" name="react_pass" placeholder="React Password">
+        <div class="react-state-display" id="react-pass-state">State: [empty]</div>
+      </div>
+    </form>
+    <script>
+      (function() {
+        const u = document.getElementById('react-user');
+        const p = document.getElementById('react-pass');
+        const uState = document.getElementById('react-user-state');
+        const pState = document.getElementById('react-pass-state');
+
+        function updateState(input, el) {
+          el.textContent = 'State: ' + (input.value || '[empty]');
+        }
+        ['input', 'change', 'blur'].forEach(evt => {
+          u.addEventListener(evt, () => updateState(u, uState));
+          p.addEventListener(evt, () => updateState(p, pState));
+        });
+      })();
+    </script>
+  </div>
+
+  <!-- Scenario 4: Dynamic modal insertion -->
+  <div class="test-section" id="section-dynamic">
+    <h3>Test 4: Dynamic Modal Form (SPA Insertion)</h3>
+    <button id="spawn-modal-btn">Open Dynamic Login Modal</button>
+    <div id="dynamic-modal-container"></div>
+    <script>
+      document.getElementById('spawn-modal-btn').onclick = function() {
+        const container = document.getElementById('dynamic-modal-container');
+        container.innerHTML = `
+          <div style="background:#020617; border:2px solid #3b82f6; border-radius:10px; padding:16px; margin-top:12px;">
+            <h4 style="margin:0 0 10px 0; color:#60a5fa;">Dynamic SPA Modal Form</h4>
+            <form id="form-dynamic" onsubmit="event.preventDefault()">
+              <div class="form-group">
+                <input type="text" id="dyn-user" name="email" placeholder="Dynamic Email" autocomplete="email">
+              </div>
+              <div class="form-group">
+                <input type="password" id="dyn-pass" name="password" placeholder="Dynamic Password">
+              </div>
+              <button type="submit">Log In Modal</button>
+            </form>
+          </div>
+        `;
+      };
+    </script>
+  </div>
+
+  <!-- Scenario 5: Username-first flow -->
+  <div class="test-section" id="section-username-first">
+    <h3>Test 5: Username-First Flow</h3>
+    <div id="uf-step1">
+      <form id="form-uf1" onsubmit="event.preventDefault(); document.getElementById('uf-step1').style.display='none'; document.getElementById('uf-step2').style.display='block';">
+        <div class="form-group">
+          <label for="uf-user">Step 1: Enter Username/Email</label>
+          <input type="email" id="uf-user" name="login_handle" placeholder="username@example.com" autocomplete="username">
+        </div>
+        <button type="submit" id="uf-next-btn">Next →</button>
+      </form>
+    </div>
+    <div id="uf-step2" style="display:none;">
+      <form id="form-uf2" onsubmit="event.preventDefault();">
+        <div class="form-group">
+          <label for="uf-pass">Step 2: Enter Password</label>
+          <input type="password" id="uf-pass" name="login_password" placeholder="Enter Password" autocomplete="current-password">
+        </div>
+        <button type="submit">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>

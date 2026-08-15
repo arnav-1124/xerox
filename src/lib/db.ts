@@ -170,12 +170,21 @@ export async function saveVaultMeta(meta: VaultMetadata): Promise<void> {
   tx.objectStore('vault_meta').put({ key: 'metadata', value: meta });
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => {
-      // Sync to localStorage or Extension channel if needed
+      // Sync to localStorage & Extension message channel
       try {
         localStorage.setItem('xerox_vault_meta_sync', JSON.stringify(meta));
         window.postMessage({ type: 'XEROX_SYNC_VAULT', vaultMeta: meta, encryptedVault: meta.encryptedVault }, '*');
+        
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({
+            action: 'SYNC_VAULT_FROM_WEBAPP',
+            payload: { vaultMeta: meta, encryptedVault: meta.encryptedVault }
+          }, () => {
+            // Ignore runtime errors if extension is not installed
+          });
+        }
       } catch (e) {
-        console.error('Local sync failed', e);
+        console.error('Vault metadata sync error:', e);
       }
       resolve();
     };

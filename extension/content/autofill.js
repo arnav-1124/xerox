@@ -1,5 +1,7 @@
 /**
  * Xerox Real Browser Autofill Injector
+ * Handles Shadow DOM UI isolation, framework-compatible DOM input value setting,
+ * full event dispatch, and badge UI position management.
  */
 
 (function () {
@@ -15,38 +17,71 @@
       }
       return container.shadowRoot;
     },
+
     fillCredentials(usernameInput, passwordInput, credential) {
-      if (!credential) return;
-      if (usernameInput && credential.username) this.setInputValue(usernameInput, credential.username);
-      if (passwordInput && credential.password) this.setInputValue(passwordInput, credential.password);
+      if (!credential) return { usernameFilled: false, passwordFilled: false };
+
+      let usernameFilled = false;
+      let passwordFilled = false;
+
+      if (usernameInput && credential.username) {
+        usernameFilled = this.setInputValue(usernameInput, credential.username);
+      }
+      if (passwordInput && credential.password) {
+        passwordFilled = this.setInputValue(passwordInput, credential.password);
+      }
+
+      return { usernameFilled, passwordFilled };
     },
+
     setInputValue(inputElement, value) {
-      if (!inputElement) return;
+      if (!inputElement || typeof value !== 'string') return false;
+
       try {
         inputElement.focus();
         inputElement.click();
 
         const proto = Object.getPrototypeOf(inputElement);
-        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+        const descriptor =
+          Object.getOwnPropertyDescriptor(proto, 'value') ||
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value') ||
+          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
+
         if (descriptor && descriptor.set) {
           descriptor.set.call(inputElement, value);
         } else {
           inputElement.value = value;
         }
 
-        // Standard framework change triggers simulating physical hardware events
+        // Dispatch comprehensive sequence of events simulating hardware interactions
         inputElement.dispatchEvent(new Event('focus', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('keydown', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('keypress', { bubbles: true, composed: true }));
+
         try {
-          inputElement.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: value }));
+          inputElement.dispatchEvent(
+            new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: value })
+          );
         } catch (e) {
           inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
         }
+
+        inputElement.dispatchEvent(new Event('keyup', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
         inputElement.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
+
+        // Verify value was retained
+        return inputElement.value === value;
       } catch (e) {
-        inputElement.value = value;
+        try {
+          inputElement.value = value;
+          return inputElement.value === value;
+        } catch (e2) {
+          return false;
+        }
       }
     },
+
     makeDraggable(element) {
       let isDragging = false;
       let startX = 0, startY = 0;
@@ -97,9 +132,11 @@
 
       element.addEventListener('mousedown', onMouseDown);
     },
+
     attachAutofillBadge(targetInput, onBadgeClick) {
       const shadow = this.getShadowRoot();
       let wrapper = shadow.getElementById('xerox-floating-badge');
+
       if (wrapper) {
         const btn = wrapper.querySelector('.xerox-autofill-btn');
         if (btn) {
@@ -112,15 +149,25 @@
           });
         }
         wrapper.style.display = 'flex';
-        
-        // Re-align to targetInput
-        const rect = targetInput.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
+
+        const updatePositionExisting = () => {
+          if (!targetInput || !document.body.contains(targetInput)) {
+            wrapper.style.display = 'none';
+            return;
+          }
+          const rect = targetInput.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) {
+            wrapper.style.display = 'none';
+            return;
+          }
+          wrapper.style.display = 'flex';
           const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
-          const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + (rect.height / 2) - 15));
+          const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + rect.height / 2 - 15));
           wrapper.style.left = left + 'px';
           wrapper.style.top = top + 'px';
-        }
+        };
+
+        updatePositionExisting();
         return;
       }
 
@@ -164,7 +211,7 @@
         }
         wrapper.style.display = 'flex';
         const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
-        const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + (rect.height / 2) - 15));
+        const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + rect.height / 2 - 15));
         wrapper.style.left = left + 'px';
         wrapper.style.top = top + 'px';
       };
@@ -195,6 +242,7 @@
         }
       });
     },
+
     hideBadge() {
       const container = document.getElementById('xerox-shadow-container');
       if (container && container.shadowRoot) {
