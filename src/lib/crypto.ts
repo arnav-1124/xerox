@@ -11,20 +11,17 @@ const IV_SIZE = 12;
 
 function isSubtleCryptoAvailable(): boolean {
   return (
-    typeof window !== 'undefined' &&
-    typeof window.crypto !== 'undefined' &&
-    typeof window.crypto.subtle !== 'undefined'
+    typeof globalThis !== 'undefined' &&
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.subtle !== 'undefined'
   );
 }
 
 function getRandomBytes(length: number): Uint8Array {
   const bytes = new Uint8Array(length);
-  if (
-    typeof window !== 'undefined' &&
-    window.crypto &&
-    typeof window.crypto.getRandomValues === 'function'
-  ) {
-    window.crypto.getRandomValues(bytes);
+  const cryptoObj = typeof globalThis !== 'undefined' && globalThis.crypto ? globalThis.crypto : (typeof window !== 'undefined' ? window.crypto : null);
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    cryptoObj.getRandomValues(bytes);
   } else {
     for (let i = 0; i < length; i++) {
       bytes[i] = Math.floor(Math.random() * 256);
@@ -32,6 +29,7 @@ function getRandomBytes(length: number): Uint8Array {
   }
   return bytes;
 }
+
 
 // Convert ArrayBuffer to Base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {

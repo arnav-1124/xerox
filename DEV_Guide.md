@@ -9,7 +9,7 @@ Xerox is an enterprise-grade, local-first password vault, 2FA TOTP authenticator
 ```text
 src/
 ├── domain/                  # Pure Domain Entities & Types (Zero framework/storage dependencies)
-│   ├── vault/               # VaultItem, VaultItemType, VaultEnvelopeV2
+│   ├── vault/               # VaultItem, VaultItemType, VaultEnvelopeV2, WebAuthnProtection
 │   ├── bookmarks/           # Bookmark domain entity
 │   ├── categories/          # Category entity & tree structure
 │   ├── security/            # PasswordHealth, LocalRecoveryKit domain models
@@ -18,19 +18,19 @@ src/
 ├── infrastructure/          # Low-Level Storage, Crypto & Hardware Adapters
 │   ├── storage/             # VaultRepository, BookmarkRepository, CategoryRepository (IndexedDB)
 │   ├── crypto/              # CryptoService (WebCrypto AES-GCM 256-bit + PBKDF2 100k + VEK/KEK envelope)
-│   ├── webauthn/            # WebAuthnService (Platform Authenticators)
+│   ├── webauthn/            # WebAuthnService (Hardware PRF Extension + HKDF Biometric KEK)
 │   ├── google-drive/        # GoogleDriveService (Encrypted cloud backup)
 │   └── extension/           # Extension Messaging Contracts
 │
 ├── application/             # Core Use Cases & Application Services
-│   ├── vault/               # VaultService (State machine, unlock, recovery, password rotation) & VaultMigrationService
+│   ├── vault/               # VaultService (State machine, unlock, recovery, password rotation, passkeys)
 │   ├── bookmarks/           # BookmarkService
 │   ├── categories/          # CategoryService
 │   ├── security/            # SecurityService & PasswordHealthService
 │   └── import-export/       # ImportExportService (Multi-format parsers & preview)
 │
 ├── hooks/                   # Custom React Hooks
-├── tests/                   # P0 Cryptographic & Migration Test Suite
+├── tests/                   # P0 & P1 Cryptographic, WebAuthn PRF & Tamper Test Suites
 └── components/              # UI Render Components
 ```
 
@@ -51,10 +51,13 @@ npm run lint
 # 4. Run P0 Crypto & Recovery Unit Test Suite
 npx tsx src/tests/cryptoP0Remediation.test.ts
 
-# 5. Execute 31-point real-world extension validation suite
+# 5. Run P1 WebAuthn PRF & Tamper Hardening Suite
+npx tsx src/tests/cryptoP1WebAuthn.test.ts
+
+# 6. Execute 31-point real-world extension validation suite
 npm run test:extension
 
-# 6. Build production web bundle
+# 7. Build production web bundle
 npm run build
 ```
 
@@ -63,6 +66,6 @@ npm run build
 ## 3. Cryptographic Specification
 
 - **VEK:** Random 256-bit AES-GCM Key (`crypto.getRandomValues()`).
-- **KEK / RKEK:** PBKDF2 (SHA-256, 100,000 iterations, 16-byte random salt).
+- **KEK / RKEK / Biometric KEK:** Derived via PBKDF2 (SHA-256, 100,000 iterations) or WebAuthn PRF extension + HKDF (SHA-256).
 - **Cipher:** AES-GCM 256-bit with unique 12-byte IV per encryption.
 - **HaveIBeenPwned API:** SHA-1 k-Anonymity 5-character prefix search with `Add-Padding: true` headers.

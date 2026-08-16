@@ -1,13 +1,15 @@
 /**
  * Core Vault Application Service & State Machine
  * Owns business logic for vault initialization, locking/unlocking state, and item manipulation using 2-tier VEK/KEK envelope encryption.
+ * P1 Implementation: Multi-authenticator WebAuthn PRF key unwrapping, zero master password storage.
  */
 
-import { VaultState, VaultSettings, PasswordEntry } from '../../types';
+import { VaultState, VaultSettings } from '../../types';
 import { VaultItem } from '../../domain/vault/VaultItem';
-import { VaultEnvelopeV2, isVaultEnvelopeV2 } from '../../domain/vault/VaultEnvelope';
+import { VaultEnvelopeV2, isVaultEnvelopeV2, WebAuthnProtection } from '../../domain/vault/VaultEnvelope';
 import { IVaultRepository, defaultVaultRepository } from '../../infrastructure/storage/VaultRepository';
 import { ICryptoService, defaultCryptoService } from '../../infrastructure/crypto/CryptoService';
+import { authenticateWebAuthnCredential } from '../../lib/webauthn';
 
 const RECOVERY_STORAGE_KEY = 'xerox_local_recovery_kit';
 
@@ -58,7 +60,6 @@ export class VaultService {
       let vekBytes: Uint8Array;
 
       if (isVaultEnvelopeV2(rawVault)) {
-        // V2 Envelope Path
         const envelope = rawVault as VaultEnvelopeV2;
         vekBytes = await this.cryptoService.unwrapVEK(
           envelope.passwordProtection.wrappedVEK,
@@ -73,7 +74,6 @@ export class VaultService {
           vekBytes
         );
       } else {
-        // V1 Legacy Path - Decrypt and auto-migrate
         const legacy = rawVault as any;
         decryptedRaw = await this.cryptoService.decrypt(
           legacy.cipherText,
@@ -82,7 +82,6 @@ export class VaultService {
           masterPassword
         );
 
-        // Auto-generate recovery key and migrate to V2 Envelope
         const recoveryBytes = new Uint8Array(32);
         if (typeof window !== 'undefined' && window.crypto) {
           window.crypto.getRandomValues(recoveryBytes);
@@ -181,6 +180,93 @@ export class VaultService {
     }
   }
 
+  async unlockWithBiometrics(protection: WebAuthnProtection): Promise<boolean> {
+    this.state = 'unlocking';
+    try {
+      const rawVault = await this.vaultRepo.getVault();
+      if (!rawVault || !isVaultEnvelopeV2(rawVault)) {
+        this.state = 'locked';
+        throw new Error('Invalid or unmigrated vault');
+      }
+
+      const envelope = rawVault as VaultEnvelopeV2;
+      const vekBytes = await authenticateWebAuthnCredential(protection);
+
+      const decryptedRaw = await this.cryptoService.decryptPayloadWithVEK(
+        envelope.encryptedVault.cipherText,
+        envelope.encryptedVault.iv,
+        vekBytes
+      );
+
+      if (!Array.isArray(decryptedRaw)) {
+        throw new Error('Invalid vault payload format');
+      }
+
+      this.decryptedVault = this.normalizeVaultItems(decryptedRaw);
+      this.currentVEK = vekBytes;
+      this.currentMasterPassword = null;
+      this.state = 'unlocked';
+      return true;
+    } catch {
+      this.state = 'locked';
+      return false;
+    }
+  }
+
+  async addBiometricAuthenticator(protection: WebAuthnProtection): Promise<boolean> {
+    if (this.state !== 'unlocked' || !this.currentVEK) {
+      throw new Error('Vault must be unlocked to add biometric authenticator');
+    }
+
+    const rawVault = await this.vaultRepo.getVault();
+    if (!rawVault || !isVaultEnvelopeV2(rawVault)) {
+      throw new Error('Vault is not in V2 envelope format');
+    }
+
+    const envelope = rawVault as VaultEnvelopeV2;
+    const existing = envelope.webauthnProtections || [];
+    const updatedList = [...existing.filter((p) => p.credentialId !== protection.credentialId), protection];
+
+    const updatedEnvelope: VaultEnvelopeV2 = {
+      ...envelope,
+      webauthnProtections: updatedList,
+      updatedAt: Date.now(),
+    };
+
+    await this.vaultRepo.saveVault(updatedEnvelope as any);
+    return true;
+  }
+
+  async removeBiometricAuthenticator(credentialId: string): Promise<boolean> {
+    if (this.state !== 'unlocked') {
+      throw new Error('Vault must be unlocked to remove biometric authenticator');
+    }
+
+    const rawVault = await this.vaultRepo.getVault();
+    if (!rawVault || !isVaultEnvelopeV2(rawVault)) {
+      throw new Error('Vault is not in V2 envelope format');
+    }
+
+    const envelope = rawVault as VaultEnvelopeV2;
+    const existing = envelope.webauthnProtections || [];
+    const updatedList = existing.filter((p) => p.credentialId !== credentialId);
+
+    const updatedEnvelope: VaultEnvelopeV2 = {
+      ...envelope,
+      webauthnProtections: updatedList,
+      updatedAt: Date.now(),
+    };
+
+    await this.vaultRepo.saveVault(updatedEnvelope as any);
+    return true;
+  }
+
+  async getBiometricAuthenticators(): Promise<WebAuthnProtection[]> {
+    const rawVault = await this.vaultRepo.getVault();
+    if (!rawVault || !isVaultEnvelopeV2(rawVault)) return [];
+    return (rawVault as VaultEnvelopeV2).webauthnProtections || [];
+  }
+
   async changeMasterPassword(oldPassword: string, newPassword: string): Promise<boolean> {
     if (this.state !== 'unlocked' || !this.currentVEK) {
       throw new Error('Vault must be unlocked to change master password');
@@ -192,7 +278,6 @@ export class VaultService {
     }
 
     const envelope = rawVault as VaultEnvelopeV2;
-    // Verify old password unwraps VEK
     await this.cryptoService.unwrapVEK(
       envelope.passwordProtection.wrappedVEK,
       envelope.passwordProtection.wrapIv,
@@ -200,7 +285,6 @@ export class VaultService {
       oldPassword
     );
 
-    // Re-wrap SAME VEK under new password KEK
     const pwdWrap = await this.cryptoService.wrapVEK(this.currentVEK, newPassword);
 
     const updatedEnvelope: VaultEnvelopeV2 = {

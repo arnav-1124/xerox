@@ -90,10 +90,22 @@
     if (!target) return;
     const formFields = window.XeroxFieldDetector.findLoginFields(target);
     if (formFields && formFields.passwordInput && formFields.passwordInput.value) {
-      const uVal = formFields.usernameInput ? formFields.usernameInput.value : '';
-      const pVal = formFields.passwordInput.value;
+      const uVal = formFields.usernameInput ? formFields.usernameInput.value.trim() : '';
+      const pVal = formFields.passwordInput.value.trim();
       if (pVal.length >= 2) {
-        showSavePasswordPrompt(uVal, pVal);
+        const currentUrl = window.location.href;
+        chrome.runtime.sendMessage({ action: 'GET_MATCHING_CREDENTIALS', payload: { url: currentUrl } }, (response) => {
+          if (chrome.runtime.lastError || !response || !response.isUnlocked) return;
+          const matches = response.matches || [];
+          const existingUserMatch = matches.find(m => (m.username || '').toLowerCase() === uVal.toLowerCase());
+          if (existingUserMatch) {
+            // Found existing username for domain -> check if password update
+            showSavePasswordPrompt(uVal, pVal, true);
+          } else {
+            // New login -> offer save prompt
+            showSavePasswordPrompt(uVal, pVal, false);
+          }
+        });
       }
     }
   }
@@ -263,7 +275,7 @@
     });
   }
 
-  function showSavePasswordPrompt(username, password) {
+  function showSavePasswordPrompt(username, password, isUpdate = false) {
     const shadow = window.XeroxAutofill.getShadowRoot();
     const existing = shadow.getElementById('xerox-save-password-banner');
     if (existing) existing.remove();
@@ -274,17 +286,23 @@
     banner.id = 'xerox-save-password-banner';
     banner.style.cssText = 'position:fixed;top:16px;right:16px;background:#111827;border:1.5px solid #3b82f6;border-radius:12px;padding:14px 18px;color:#f3f4f6;z-index:2147483647;box-shadow:0 10px 25px rgba(0,0,0,0.8);font-family:system-ui,-apple-system,sans-serif;width:300px;display:flex;flex-direction:column;gap:10px;';
 
+    const titleText = isUpdate ? 'Update password in Xerox?' : 'Save to Xerox?';
+    const actionText = isUpdate ? 'Update' : 'Save';
+    const bodyText = isUpdate
+      ? `Update saved password for <strong style="color:#60a5fa;">${domainName}</strong> (${username || 'User'}) in your local vault?`
+      : `Save login for <strong style="color:#60a5fa;">${domainName}</strong> (${username || 'User'}) to your encrypted local vault?`;
+
     banner.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:700;font-size:13px;color:#60a5fa;">🔐 Save Password to Xerox?</span>
-        <button id="xerox-save-close" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;">✕</button>
+        <span style="font-weight:700;font-size:13px;color:#60a5fa;">🔐 ${titleText}</span>
+        <button id="xerox-save-close" aria-label="Dismiss Xerox prompt" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;">✕</button>
       </div>
       <div style="font-size:11.5px;color:#d1d5db;">
-        Save login for <strong style="color:#60a5fa;">${domainName}</strong> (${username || 'User'}) to your encrypted local vault?
+        ${bodyText}
       </div>
       <div style="display:flex;gap:8px;margin-top:2px;">
-        <button id="xerox-save-confirm" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px;font-size:11.5px;font-weight:600;cursor:pointer;">Save</button>
-        <button id="xerox-save-cancel" style="flex:1;background:#374151;color:#f3f4f6;border:none;border-radius:6px;padding:7px;font-size:11.5px;font-weight:500;cursor:pointer;">Not Now</button>
+        <button id="xerox-save-confirm" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px;font-size:11.5px;font-weight:600;cursor:pointer;">${actionText}</button>
+        <button id="xerox-save-cancel" style="flex:1;background:#374151;color:#f3f4f6;border:none;border-radius:6px;padding:7px;font-size:11.5px;font-weight:500;cursor:pointer;">Not now</button>
       </div>
     `;
 
@@ -295,7 +313,7 @@
     shadow.getElementById('xerox-save-cancel').onclick = close;
 
     shadow.getElementById('xerox-save-confirm').onclick = () => {
-      showBriefToast(`✓ Password for ${domainName} saved!`);
+      showBriefToast(isUpdate ? `✓ Password for ${domainName} updated!` : `✓ Login for ${domainName} saved!`);
       close();
     };
   }

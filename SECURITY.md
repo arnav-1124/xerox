@@ -1,18 +1,20 @@
 # Security Policy & Cryptographic Threat Model 🛡️
 
-## 1. Zero-Knowledge 2-Tier Envelope Encryption
+## 1. Zero-Knowledge 3-Tier Envelope Encryption
 
-Xerox employs a local-first **2-tier Envelope Encryption Model** (VEK / KEK):
+Xerox employs a local-first **3-tier Envelope Encryption Model** (VEK / KEK):
 
 - **Vault Encryption Key (VEK):** Random 256-bit AES key (`crypto.getRandomValues()`). The VEK encrypts the vault payload on your client device using AES-GCM 256-bit encryption.
-- **Key Encryption Keys (KEK & RKEK):** Derived via PBKDF2 (SHA-256, 100,000 iterations). Your Master Password and 256-bit Emergency Recovery Key independently unwrap the same VEK.
-- **SEC-01 Purge:** Insecure legacy XOR master password storage has been completely purged. Plaintext master passwords are never stored anywhere in local storage or IndexedDB.
+- **Key Encryption Keys (KEK, RKEK, Biometric KEK):** Derived via PBKDF2 (SHA-256, 100,000 iterations) or WebAuthn PRF extension (`eval: { first: salt }`) + HKDF.
+- **Zero Master Password Storage:** WebAuthn biometrics derive a `Biometric KEK` directly from hardware authenticator PRF evaluation. Your Master Password is **never stored, encrypted, XORed, or retrieved**.
 
 ---
 
 ## 2. Security Controls & Defensive Mechanisms
 
+- **Hardware Passkey Support:** Register multiple passkeys (`Touch ID`, `Windows Hello`, `YubiKey`). Adding or removing passkeys updates only key wrapping metadata without modifying the VEK or re-encrypting the vault payload.
 - **Genuine Offline Recovery Kit:** Entering your 256-bit Emergency Recovery Key (`XXXX-XXXX-XXXX-XXXX-...`) derives an RKEK that unwraps the VEK to restore local vault access and set a new Master Password without re-encrypting the vault payload.
+- **AES-GCM Tamper Resistance:** Ciphertexts, IVs, salts, and wrapped VEKs are protected by 128-bit GCM authentication tags. Any byte tampering triggers safe authentication rejection.
 - **Rate-Limiting & Lockout Policy:** Failed master password attempts trigger exponential backoff (3 attempts $\rightarrow$ 5s delay, 4 attempts $\rightarrow$ 15s delay, 5+ attempts $\rightarrow$ 60s lockout) to prevent brute-force attacks.
 - **Origin Guarding:** Extension synchronization postMessages are strictly filtered against an explicit origin allowlist (`TRUSTED_XEROX_ORIGINS`).
 - **k-Anonymity Leak Checks:** HaveIBeenPwned API checks use SHA-1 5-character prefix queries with `Add-Padding: true` headers. Plaintext passwords are never sent over the network.

@@ -1,6 +1,7 @@
 /**
  * Vault Envelope V2 Schema Specification
  * Formalizes 2-tier Envelope Encryption (VEK + KEK) and versioned storage schemas.
+ * P1 Extension: Multi-authenticator WebAuthn PRF key protection.
  */
 
 export interface WrappedKeyProtection {
@@ -8,6 +9,17 @@ export interface WrappedKeyProtection {
   iterations: number;
   wrappedVEK: string; // Base64 AES-GCM ciphertext of 256-bit VEK
   wrapIv: string;     // Base64 12-byte IV used to wrap VEK
+}
+
+export interface WebAuthnProtection {
+  credentialId: string;
+  rpId?: string;
+  prfSupported: boolean;
+  salt: string;        // Base64 16-byte derivation salt for HKDF/WebCrypto KDF
+  wrappedVEK: string;  // Base64 AES-GCM ciphertext of 256-bit VEK
+  wrapIv: string;      // Base64 12-byte IV used to wrap VEK
+  label?: string;      // e.g. "Windows Hello", "Touch ID", "Security Key"
+  createdAt: number;
 }
 
 export interface VaultEnvelopeV2 {
@@ -19,6 +31,7 @@ export interface VaultEnvelopeV2 {
   };
   passwordProtection: WrappedKeyProtection;
   recoveryProtection: WrappedKeyProtection;
+  webauthnProtections?: WebAuthnProtection[];
   createdAt: number;
   updatedAt: number;
 }

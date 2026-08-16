@@ -1,10 +1,12 @@
 /**
  * Xerox Real Browser Autofill Injector
  * Handles Shadow DOM UI isolation, framework-compatible DOM input value setting,
- * full event dispatch, and badge UI position management.
+ * full event dispatch, badge UI positioning and contextual dismissal.
  */
 
 (function () {
+  let isDismissedForCurrentContext = false;
+
   window.XeroxAutofill = {
     getShadowRoot() {
       let container = document.getElementById('xerox-shadow-container');
@@ -88,7 +90,7 @@
       let initialLeft = 0, initialTop = 0;
 
       const onMouseDown = (e) => {
-        if (e.target.closest('.xerox-autofill-btn')) return;
+        if (e.target.closest('.xerox-autofill-btn') || e.target.closest('.xerox-dismiss-btn')) return;
 
         isDragging = true;
         startX = e.clientX;
@@ -134,6 +136,8 @@
     },
 
     attachAutofillBadge(targetInput, onBadgeClick) {
+      if (isDismissedForCurrentContext) return;
+
       const shadow = this.getShadowRoot();
       let wrapper = shadow.getElementById('xerox-floating-badge');
 
@@ -148,10 +152,23 @@
             onBadgeClick();
           });
         }
+
+        const dismissBtn = wrapper.querySelector('.xerox-dismiss-btn');
+        if (dismissBtn) {
+          const newDismiss = dismissBtn.cloneNode(true);
+          dismissBtn.parentNode.replaceChild(newDismiss, dismissBtn);
+          newDismiss.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isDismissedForCurrentContext = true;
+            wrapper.style.display = 'none';
+          });
+        }
+
         wrapper.style.display = 'flex';
 
         const updatePositionExisting = () => {
-          if (!targetInput || !document.body.contains(targetInput)) {
+          if (!targetInput || !document.body.contains(targetInput) || isDismissedForCurrentContext) {
             wrapper.style.display = 'none';
             return;
           }
@@ -161,7 +178,7 @@
             return;
           }
           wrapper.style.display = 'flex';
-          const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
+          const left = Math.max(10, Math.min(window.innerWidth - 180, rect.right - 120));
           const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + rect.height / 2 - 15));
           wrapper.style.left = left + 'px';
           wrapper.style.top = top + 'px';
@@ -179,11 +196,11 @@
         cursor: grab;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         background: #111827;
         border: 1.5px solid #3b82f6;
         border-radius: 8px;
-        padding: 4px 10px;
+        padding: 4px 8px;
         font-family: system-ui, -apple-system, sans-serif;
         font-size: 12px;
         color: #f3f4f6;
@@ -197,10 +214,11 @@
         <span style="font-size: 13px;">🔐</span>
         <span style="font-weight: 700; font-size: 11px; color: #60a5fa; letter-spacing: 0.3px;">Xerox</span>
         <button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; margin-left: 2px; cursor: pointer; transition: background 0.15s;">Autofill</button>
+        <button type="button" class="xerox-dismiss-btn" aria-label="Dismiss Xerox autofill" style="background: transparent; color: #9ca3af; border: none; border-radius: 4px; padding: 2px 5px; font-size: 13px; font-weight: 700; margin-left: 1px; cursor: pointer; transition: color 0.15s;">✕</button>
       `;
 
       const updatePosition = () => {
-        if (!targetInput || !document.body.contains(targetInput)) {
+        if (!targetInput || !document.body.contains(targetInput) || isDismissedForCurrentContext) {
           wrapper.style.display = 'none';
           return;
         }
@@ -210,7 +228,7 @@
           return;
         }
         wrapper.style.display = 'flex';
-        const left = Math.max(10, Math.min(window.innerWidth - 170, rect.right - 110));
+        const left = Math.max(10, Math.min(window.innerWidth - 180, rect.right - 120));
         const top = Math.max(5, Math.min(window.innerHeight - 40, rect.top + rect.height / 2 - 15));
         wrapper.style.left = left + 'px';
         wrapper.style.top = top + 'px';
@@ -232,11 +250,21 @@
         });
       }
 
+      const dismissBtn = wrapper.querySelector('.xerox-dismiss-btn');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          isDismissedForCurrentContext = true;
+          wrapper.style.display = 'none';
+        });
+      }
+
       let dragMoved = false;
       wrapper.addEventListener('mousedown', () => { dragMoved = false; });
       wrapper.addEventListener('mousemove', () => { dragMoved = true; });
       wrapper.addEventListener('click', (e) => {
-        if (e.target.closest('.xerox-autofill-btn')) return;
+        if (e.target.closest('.xerox-autofill-btn') || e.target.closest('.xerox-dismiss-btn')) return;
         if (!dragMoved) {
           onBadgeClick();
         }

@@ -438,7 +438,7 @@ export const SecurityAuditView: React.FC<SecurityAuditViewProps> = ({
                       )}
                       {isStale && (
                         <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-500 font-semibold">
-                          <Clock className="w-3 h-3" /> Stale (&gt;90 days)
+                          <Clock className="w-3 h-3" /> Password Age: {Math.floor((Date.now() - (entry.updatedAt || entry.createdAt || Date.now())) / (1000 * 60 * 60 * 24))}d
                         </span>
                       )}
                       {!isWeak && !isReused && !isStale && (
@@ -472,9 +472,10 @@ export const SecurityAuditView: React.FC<SecurityAuditViewProps> = ({
 
                     <button
                       onClick={() => onEditPassword(entry)}
-                      className="px-3 py-1.5 bg-secondary text-secondary-foreground border border-border hover:bg-accent font-medium text-xs rounded-lg transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-secondary text-secondary-foreground border border-border hover:bg-accent font-medium text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                     >
-                      Edit
+                      <ExternalLink className="w-3 h-3" />
+                      View Credential
                     </button>
                   </div>
                 </div>
