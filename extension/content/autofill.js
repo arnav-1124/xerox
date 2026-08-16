@@ -33,6 +33,9 @@
         passwordFilled = this.setInputValue(passwordInput, credential.password);
       }
 
+      // Automatically hide badge after autofilling
+      this.hideBadge();
+
       return { usernameFilled, passwordFilled };
     },
 
