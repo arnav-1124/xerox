@@ -19,12 +19,12 @@
 
 * **Zero-Knowledge Encryption**: AES-GCM 256-bit encryption backed by PBKDF2 (100,000 iterations). Your master password never leaves your device.
 * **Encrypted File & Document Vault**: Locally store and encrypt confidential PDFs, passports, and keys in IndexedDB without cloud retention.
-* **2FA TOTP Live Authenticator**: Built-in 6-digit Time-based One-Time Password generator with live countdown timers and secret vaulting.
-* **Local Password Health Audit**: Deep offline audit checking passwords against weak patterns, dictionary words, and reuse detection.
+* **2FA TOTP Live Authenticator**: Built-in 6-digit Time-based One-Time Password generator with live countdown timers and extension clipboard auto-copy.
+* **Biometric WebAuthn Unlock**: Native Apple Touch ID, Face ID, and Windows Hello passwordless vault unlock.
+* **Local Password Health Audit**: Deep offline audit checking passwords against weak patterns, dictionary words, and HaveIBeenPwned K-Anonymity breach detection.
 * **Manifest V3 Browser Extension**: Real Chrome/Edge browser extension for automatic login form detection and secure credential autofill.
 * **Secure Payment & Notes Vault**: Store credit cards, secure notes, and sensitive personal items with encrypted fields.
 * **Smart Bookmark Manager**: Organize website links with favicons, categories, tags, descriptions, and favorite toggles.
-* **Password Generator & Auto-Lock Shield**: Cryptographically secure random passwords and configurable inactivity auto-lock.
 
 ---
 
@@ -43,16 +43,18 @@ To bypass this fee and install Xerox instantly for free:
 
 ---
 
+## 📖 Technical Architecture & Developer Docs
+
+For detailed end-to-end technical documentation covering the cryptographic specifications, extension messaging contracts, field detection engine, rate-limiting rules, and automated Playwright validation suite, see:
+
+👉 **[TECHNICAL ARCHITECTURE & DEVELOPER GUIDE (ARCHITECTURE.md)](ARCHITECTURE.md)**
+
+---
+
 ## 🌐 Custom Domains & Hosting
 
 * **Custom Domains**: Google does **not** provide free top-level domains (`.com`, `.net`), but you can purchase a domain from any registrar (Namecheap, Porkbun, Squarespace) for ~$10/year and link it for **free** to your Vercel deployment (`xerox-orcin.vercel.app`).
 * **Free Hosting Subdomains**: Vercel (`*.vercel.app`) provides free HTTPS SSL certificates, global CDN edge hosting, and automatic continuous deployment from GitHub out of the box.
-
----
-
-## 🔒 Security & Compliance
-
-See [SECURITY.md](SECURITY.md) for our full cryptographic threat model and vulnerability disclosure policy.
 
 ---
 

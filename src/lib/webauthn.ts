@@ -1,9 +1,34 @@
 /**
  * WebAuthn Biometric Vault Unlock Helper
- * Provides TouchID / FaceID / Windows Hello passwordless authentication for Xerox Web Vault.
+ * Provides Touch ID / Face ID / Windows Hello passwordless authentication for Xerox Web Vault.
  */
 
 const BIOMETRIC_STORAGE_KEY = 'xerox_biometric_credential';
+
+function bufferToBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function base64UrlToBuffer(base64url: string): ArrayBuffer {
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
 
 export function isWebAuthnSupported(): boolean {
   return (
@@ -29,7 +54,7 @@ export function clearBiometricsConfig(): void {
 
 export async function registerBiometrics(masterPassword: string): Promise<boolean> {
   if (!isWebAuthnSupported()) {
-    throw new Error('WebAuthn biometrics are not supported on this browser or device.');
+    throw new Error('WebAuthn biometrics are not supported on this browser or environment.');
   }
 
   const challenge = new Uint8Array(32);
@@ -38,20 +63,22 @@ export async function registerBiometrics(masterPassword: string): Promise<boolea
   const userId = new Uint8Array(16);
   window.crypto.getRandomValues(userId);
 
+  // Omit rp.id to let browser automatically resolve current origin domain
   const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
     challenge: challenge,
     rp: {
-      name: 'Xerox Local Password Vault',
-      id: window.location.hostname || 'localhost',
+      name: 'Xerox Password Vault',
     },
     user: {
       id: userId,
-      name: 'vault_user',
-      displayName: 'Xerox Vault Master',
+      name: 'xerox_user',
+      displayName: 'Xerox Vault Owner',
     },
-    pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+    pubKeyCredParams: [
+      { alg: -7, type: 'public-key' },   // ES256
+      { alg: -257, type: 'public-key' }, // RS256
+    ],
     authenticatorSelection: {
-      authenticatorAttachment: 'platform', // Touch ID, Face ID, Windows Hello
       userVerification: 'preferred',
     },
     timeout: 60000,
@@ -66,14 +93,15 @@ export async function registerBiometrics(masterPassword: string): Promise<boolea
     throw new Error('Biometric registration was cancelled.');
   }
 
-  // Simple obfuscated encryption using credential ID hash for local storage
-  const credId = credential.id;
+  const rawIdBase64Url = bufferToBase64Url(credential.rawId);
+
+  // Encrypt master password with key derived from raw credential ID
   const enc = new TextEncoder();
   const encodedPwd = enc.encode(masterPassword);
   
   let keyVal = 0;
-  for (let i = 0; i < credId.length; i++) {
-    keyVal = (keyVal << 5) - keyVal + credId.charCodeAt(i);
+  for (let i = 0; i < rawIdBase64Url.length; i++) {
+    keyVal = (keyVal << 5) - keyVal + rawIdBase64Url.charCodeAt(i);
     keyVal |= 0;
   }
 
@@ -83,7 +111,7 @@ export async function registerBiometrics(masterPassword: string): Promise<boolea
   }
 
   const payload = {
-    credentialId: credId,
+    credentialId: rawIdBase64Url,
     wrapped: btoa(String.fromCharCode(...encryptedChars)),
     registeredAt: Date.now(),
   };
@@ -101,13 +129,8 @@ export async function authenticateBiometrics(): Promise<string> {
   if (!rawConfig) throw new Error('Biometric credential not found.');
 
   const config = JSON.parse(rawConfig);
-  const rawId = config.credentialId;
-
-  // Convert raw ID to Uint8Array for rawId matching
-  const rawIdBytes = new Uint8Array(rawId.length);
-  for (let i = 0; i < rawId.length; i++) {
-    rawIdBytes[i] = rawId.charCodeAt(i);
-  }
+  const credIdBase64Url = config.credentialId;
+  const rawIdBuffer = base64UrlToBuffer(credIdBase64Url);
 
   const challenge = new Uint8Array(32);
   window.crypto.getRandomValues(challenge);
@@ -116,9 +139,8 @@ export async function authenticateBiometrics(): Promise<string> {
     challenge: challenge,
     allowCredentials: [
       {
-        id: rawIdBytes,
+        id: rawIdBuffer,
         type: 'public-key',
-        transports: ['internal'],
       },
     ],
     userVerification: 'preferred',
@@ -135,8 +157,8 @@ export async function authenticateBiometrics(): Promise<string> {
 
   // Decrypt wrapped master password
   let keyVal = 0;
-  for (let i = 0; i < rawId.length; i++) {
-    keyVal = (keyVal << 5) - keyVal + rawId.charCodeAt(i);
+  for (let i = 0; i < credIdBase64Url.length; i++) {
+    keyVal = (keyVal << 5) - keyVal + credIdBase64Url.charCodeAt(i);
     keyVal |= 0;
   }
 

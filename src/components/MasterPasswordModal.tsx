@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, KeyRound, ShieldAlert, CheckCircle2, Fingerprint } from 'lucide-react';
-import { isBiometricsConfigured, authenticateBiometrics, isWebAuthnSupported } from '../lib/webauthn';
+import {
+  isBiometricsConfigured,
+  authenticateBiometrics,
+  isWebAuthnSupported,
+  registerBiometrics,
+} from '../lib/webauthn';
 
 interface MasterPasswordModalProps {
   isOpen: boolean;
@@ -19,14 +24,28 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [setupBiometricMode, setSetupBiometricMode] = useState(false);
+
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutSecs, setLockoutSecs] = useState(0);
   const [hasBiometrics, setHasBiometrics] = useState(false);
+  const [canSupportBiometrics, setCanSupportBiometrics] = useState(false);
 
   useEffect(() => {
-    setHasBiometrics(isBiometricsConfigured());
-  }, [isOpen]);
+    if (!isOpen) return;
+    const configured = isBiometricsConfigured();
+    const supported = isWebAuthnSupported();
+    setHasBiometrics(configured);
+    setCanSupportBiometrics(supported);
+
+    // Auto-trigger biometric prompt on modal open if configured
+    if (!isInitialSetup && configured) {
+      const timer = setTimeout(() => {
+        handleBiometricUnlock();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isInitialSetup]);
 
   useEffect(() => {
     if (lockoutSecs <= 0) return;
@@ -55,6 +74,16 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
       setError(err.message || 'Biometric authentication was cancelled.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegisterBiometricsOnUnlock = async (masterPassword: string) => {
+    try {
+      await registerBiometrics(masterPassword);
+      setHasBiometrics(true);
+      setSetupBiometricMode(false);
+    } catch (e: any) {
+      console.warn('Could not register biometrics on unlock:', e);
     }
   };
 
@@ -103,6 +132,11 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
           setError('Incorrect Master Password. Please try again.');
         }
       } else {
+        // If biometrics pairing was requested or enabled
+        if (canSupportBiometrics && (!hasBiometrics || setupBiometricMode)) {
+          await handleRegisterBiometricsOnUnlock(password);
+        }
+
         setFailedAttempts(0);
         setLockoutSecs(0);
         setPassword('');
@@ -129,7 +163,7 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
             <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
               {isInitialSetup
                 ? 'Your master password derives an AES-GCM 256-bit key locally on your device. Zero cloud. Zero server.'
-                : 'Enter your Master Password to decrypt your password vault entries in memory.'}
+                : 'Enter your Master Password or scan biometrics to decrypt your vault.'}
             </p>
           </div>
         </div>
@@ -144,16 +178,36 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
           </div>
         )}
 
+        {/* Biometrics Configured Button */}
         {!isInitialSetup && hasBiometrics && (
           <button
             type="button"
             onClick={handleBiometricUnlock}
             disabled={loading}
-            className="w-full mb-4 py-3 px-4 rounded-xl bg-purple-600/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-600/20 font-semibold transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+            className="w-full mb-4 py-3 px-4 rounded-xl bg-purple-600/10 border border-purple-500/30 text-purple-600 dark:text-purple-300 hover:bg-purple-600/20 font-semibold transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-xs"
           >
-            <Fingerprint className="w-5 h-5 text-purple-500" />
+            <Fingerprint className="w-5 h-5 text-purple-500 animate-pulse" />
             <span>Unlock with Biometrics (Touch ID / Windows Hello)</span>
           </button>
+        )}
+
+        {/* Biometrics Supported but Not Configured Yet Banner */}
+        {!isInitialSetup && canSupportBiometrics && !hasBiometrics && (
+          <div className="mb-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-300 font-medium">
+              <Fingerprint className="w-4 h-4 text-purple-500 shrink-0" />
+              <span>Enable Touch ID / Windows Hello</span>
+            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-purple-600 dark:text-purple-300 font-semibold">
+              <input
+                type="checkbox"
+                checked={setupBiometricMode}
+                onChange={(e) => setSetupBiometricMode(e.target.checked)}
+                className="rounded border-purple-400 text-purple-600"
+              />
+              <span>Pair on Unlock</span>
+            </label>
+          </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
