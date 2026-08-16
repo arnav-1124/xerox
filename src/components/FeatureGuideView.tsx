@@ -54,7 +54,7 @@ export const FeatureGuideView: React.FC<FeatureGuideViewProps> = ({
   return (
     <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12 p-4 sm:p-8 pb-20">
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-card to-secondary/30 p-8 sm:p-10 shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 sm:p-10 shadow-sm">
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold uppercase tracking-wider">
             <Sparkles className="w-3.5 h-3.5" />

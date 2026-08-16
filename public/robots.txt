@@ -1,3 +1,20 @@
 User-agent: *
 Allow: /
+Allow: /features
+Allow: /security
+Allow: /privacy
+Allow: /download
+Allow: /docs
+
+Disallow: /app
+Disallow: /bookmarks
+Disallow: /passwords
+Disallow: /totp
+Disallow: /files
+Disallow: /security-audit
+Disallow: /import-export
+Disallow: /settings
+Disallow: /favorites
+Disallow: /generator
+
 Sitemap: https://xerox-orcin.vercel.app/sitemap.xml

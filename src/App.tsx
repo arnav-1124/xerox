@@ -54,15 +54,73 @@ import { BackupPasswordModal } from './components/BackupPasswordModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { Puzzle, Star } from 'lucide-react';
 
+import { MarketingHome } from './pages/marketing/MarketingHome';
+import { MarketingFeatures } from './pages/marketing/MarketingFeatures';
+import { MarketingSecurity } from './pages/marketing/MarketingSecurity';
+import { MarketingPrivacy } from './pages/marketing/MarketingPrivacy';
+import { MarketingDownload } from './pages/marketing/MarketingDownload';
+import { MarketingDocs } from './pages/marketing/MarketingDocs';
+
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'dark';
   });
 
-  const [currentView, setCurrentView] = useState<ViewMode>('home');
+  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname);
+  const [currentView, setCurrentView] = useState<ViewMode>(() => {
+    const p = window.location.pathname;
+    if (p === '/app') return 'home';
+    if (p.startsWith('/')) {
+      const routeName = p.slice(1);
+      if (['bookmarks', 'passwords', 'totp', 'files', 'security-audit', 'import-export', 'settings', 'favorites', 'generator', 'blog', 'categories', 'extension'].includes(routeName)) {
+        return routeName as ViewMode;
+      }
+    }
+    return 'home';
+  });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const navigateTo = useCallback((newPath: string) => {
+    if (window.location.pathname !== newPath) {
+      window.history.pushState(null, '', newPath);
+    }
+    setCurrentPath(newPath);
+
+    if (newPath === '/app') {
+      setCurrentView('home');
+    } else if (newPath.startsWith('/')) {
+      const routeName = newPath.slice(1);
+      if (['bookmarks', 'passwords', 'totp', 'files', 'security-audit', 'import-export', 'settings', 'favorites', 'generator', 'blog', 'categories', 'extension'].includes(routeName)) {
+        setCurrentView(routeName as ViewMode);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const p = window.location.pathname;
+      setCurrentPath(p);
+      if (p === '/app') {
+        setCurrentView('home');
+      } else if (p.startsWith('/')) {
+        const routeName = p.slice(1);
+        if (['bookmarks', 'passwords', 'totp', 'files', 'security-audit', 'import-export', 'settings', 'favorites', 'generator', 'blog', 'categories', 'extension'].includes(routeName)) {
+          setCurrentView(routeName as ViewMode);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleSelectView = (view: ViewMode) => {
+    setCurrentView(view);
+    const targetPath = view === 'home' ? '/app' : `/${view}`;
+    navigateTo(targetPath);
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -225,8 +283,15 @@ export default function App() {
         setVaultMeta(meta);
         setSettingsState(st);
 
-        // If vault hasn't been set up yet, show initial setup modal
-        if (!meta || !meta.isInitialized) {
+        // Safe existing-user detection: Redirect / -> /app if local vault is already initialized
+        if (window.location.pathname === '/' && meta && meta.isInitialized) {
+          window.history.replaceState(null, '', '/app');
+          setCurrentPath('/app');
+          setCurrentView('home');
+        }
+
+        // If vault hasn't been set up yet and on app routes, show initial setup modal
+        if ((!meta || !meta.isInitialized) && window.location.pathname !== '/') {
           setIsMasterPasswordModalOpen(true);
         }
       } catch (err) {
@@ -1061,12 +1126,32 @@ export default function App() {
     addToast('Local vault reset completed', 'info');
   };
 
+  // Render Public Marketing Pages for marketing routes
+  if (currentPath === '/' && (!vaultMeta || !vaultMeta.isInitialized)) {
+    return <MarketingHome theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
+  }
+  if (currentPath === '/features') {
+    return <MarketingFeatures theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
+  }
+  if (currentPath === '/security') {
+    return <MarketingSecurity theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
+  }
+  if (currentPath === '/privacy') {
+    return <MarketingPrivacy theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
+  }
+  if (currentPath === '/download') {
+    return <MarketingDownload theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
+  }
+  if (currentPath === '/docs') {
+    return <MarketingDocs theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
+  }
+
   return (
     <div className="flex h-screen bg-background text-foreground font-sans antialiased overflow-hidden select-none">
       {/* Sidebar */}
       <Sidebar
         currentView={currentView}
-        onSelectView={setCurrentView}
+        onSelectView={handleSelectView}
         categories={categories}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
