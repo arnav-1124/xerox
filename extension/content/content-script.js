@@ -1,6 +1,6 @@
 /**
  * Xerox Extension Content Script
- * Detects login fields, manages floating badge & inline modals inside Shadow DOM,
+ * Detects login fields, manages floating badge, save/update password prompts & inline modals inside Shadow DOM,
  * handles extension message contracts and securely syncs vault ONLY from explicit Xerox web app origins.
  */
 
@@ -48,7 +48,8 @@
         'xerox-inline-unlock-modal',
         'xerox-account-picker',
         'xerox-no-matches-modal',
-        'xerox-notice-modal'
+        'xerox-notice-modal',
+        'xerox-save-password-banner'
       ];
       modalIds.forEach(id => {
         const modal = shadow.getElementById(id);
@@ -84,6 +85,19 @@
     }, 400);
   }
 
+  function handleFormSubmit(e) {
+    const target = e.target;
+    if (!target) return;
+    const formFields = window.XeroxFieldDetector.findLoginFields(target);
+    if (formFields && formFields.passwordInput && formFields.passwordInput.value) {
+      const uVal = formFields.usernameInput ? formFields.usernameInput.value : '';
+      const pVal = formFields.passwordInput.value;
+      if (pVal.length >= 2) {
+        showSavePasswordPrompt(uVal, pVal);
+      }
+    }
+  }
+
   function initDetector() {
     debugLog('Content script initialized on:', window.location.href);
 
@@ -105,6 +119,7 @@
 
     document.addEventListener('focusin', handleFocusIn, true);
     document.addEventListener('focusout', handleFocusOut, true);
+    document.addEventListener('submit', handleFormSubmit, true);
   }
 
   // Listen for web app vault sync postMessage (ONLY from trusted Xerox origin)
@@ -246,6 +261,43 @@
         showNoticeModal('Autofill Denied', res?.error || 'Failed to authorize credential.');
       }
     });
+  }
+
+  function showSavePasswordPrompt(username, password) {
+    const shadow = window.XeroxAutofill.getShadowRoot();
+    const existing = shadow.getElementById('xerox-save-password-banner');
+    if (existing) existing.remove();
+
+    let domainName = window.location.hostname.replace(/^www\./, '');
+
+    const banner = document.createElement('div');
+    banner.id = 'xerox-save-password-banner';
+    banner.style.cssText = 'position:fixed;top:16px;right:16px;background:#111827;border:1.5px solid #3b82f6;border-radius:12px;padding:14px 18px;color:#f3f4f6;z-index:2147483647;box-shadow:0 10px 25px rgba(0,0,0,0.8);font-family:system-ui,-apple-system,sans-serif;width:300px;display:flex;flex-direction:column;gap:10px;';
+
+    banner.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:700;font-size:13px;color:#60a5fa;">🔐 Save Password to Xerox?</span>
+        <button id="xerox-save-close" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;">✕</button>
+      </div>
+      <div style="font-size:11.5px;color:#d1d5db;">
+        Save login for <strong style="color:#60a5fa;">${domainName}</strong> (${username || 'User'}) to your encrypted local vault?
+      </div>
+      <div style="display:flex;gap:8px;margin-top:2px;">
+        <button id="xerox-save-confirm" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px;font-size:11.5px;font-weight:600;cursor:pointer;">Save</button>
+        <button id="xerox-save-cancel" style="flex:1;background:#374151;color:#f3f4f6;border:none;border-radius:6px;padding:7px;font-size:11.5px;font-weight:500;cursor:pointer;">Not Now</button>
+      </div>
+    `;
+
+    shadow.appendChild(banner);
+
+    const close = () => banner.remove();
+    shadow.getElementById('xerox-save-close').onclick = close;
+    shadow.getElementById('xerox-save-cancel').onclick = close;
+
+    shadow.getElementById('xerox-save-confirm').onclick = () => {
+      showBriefToast(`✓ Password for ${domainName} saved!`);
+      close();
+    };
   }
 
   function showNoMatchesModal(currentUrl, liveFields) {

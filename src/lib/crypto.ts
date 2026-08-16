@@ -81,7 +81,7 @@ export async function deriveKey(masterPassword: string, salt: Uint8Array): Promi
   );
 }
 
-// Encrypt plaintext data object using Master Password
+// Encrypt plaintext data object using Master Password (Legacy V1 Direct KDF)
 export async function encryptVaultData(
   data: any,
   masterPassword: string,
@@ -142,7 +142,7 @@ export async function encryptVaultData(
   };
 }
 
-// Decrypt vault data using Master Password and encrypted payload
+// Decrypt vault data using Master Password and encrypted payload (Legacy V1 Direct KDF)
 export async function decryptVaultData(
   cipherText: string,
   ivBase64: string,
@@ -202,16 +202,206 @@ export async function decryptVaultData(
   }
 }
 
+// === ENVELOPE ENCRYPTION PRIMITIVES (VEK + KEK) ===
+
+export function generateVEK(): Uint8Array {
+  return getRandomBytes(32); // Random 256-bit AES Key
+}
+
+export function formatRecoveryKey(hex: string): string {
+  const clean = hex.replace(/[^A-Fa-f0-9]/g, '').toUpperCase();
+  return clean.match(/.{1,4}/g)?.join('-') || clean;
+}
+
+export function parseRecoveryKey(formatted: string): string {
+  return formatted.replace(/[^A-Fa-f0-9]/g, '').toUpperCase();
+}
+
+export async function wrapVEK(
+  vekBytes: Uint8Array,
+  kekPassphrase: string,
+  existingSalt?: string
+): Promise<{ wrappedVEK: string; wrapIv: string; salt: string }> {
+  const salt = existingSalt
+    ? new Uint8Array(base64ToArrayBuffer(existingSalt))
+    : getRandomBytes(SALT_SIZE);
+  const wrapIv = getRandomBytes(IV_SIZE);
+
+  if (isSubtleCryptoAvailable()) {
+    const kek = await deriveKey(kekPassphrase, salt);
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: wrapIv },
+      kek,
+      vekBytes
+    );
+    return {
+      wrappedVEK: arrayBufferToBase64(encryptedBuffer),
+      wrapIv: arrayBufferToBase64(wrapIv.buffer),
+      salt: arrayBufferToBase64(salt.buffer),
+    };
+  }
+
+  // CryptoJS Fallback
+  const saltHex = CryptoJS.enc.Hex.parse(Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  const ivHex = CryptoJS.enc.Hex.parse(Array.from(wrapIv).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  const derivedKey = CryptoJS.PBKDF2(kekPassphrase, saltHex, {
+    keySize: 256 / 32,
+    iterations: PBKDF2_ITERATIONS,
+    hasher: CryptoJS.algo.SHA256,
+  });
+
+  const vekHex = Array.from(vekBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const encrypted = CryptoJS.AES.encrypt(CryptoJS.enc.Hex.parse(vekHex), derivedKey, {
+    iv: ivHex,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7,
+  });
+
+  return {
+    wrappedVEK: 'cjs:' + encrypted.toString(),
+    wrapIv: arrayBufferToBase64(wrapIv.buffer),
+    salt: arrayBufferToBase64(salt.buffer),
+  };
+}
+
+export async function unwrapVEK(
+  wrappedVEKBase64: string,
+  wrapIvBase64: string,
+  saltBase64: string,
+  kekPassphrase: string
+): Promise<Uint8Array> {
+  const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
+  const wrapIv = new Uint8Array(base64ToArrayBuffer(wrapIvBase64));
+
+  if (!wrappedVEKBase64.startsWith('cjs:') && isSubtleCryptoAvailable()) {
+    try {
+      const cipherBuffer = base64ToArrayBuffer(wrappedVEKBase64);
+      const kek = await deriveKey(kekPassphrase, salt);
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: wrapIv },
+        kek,
+        cipherBuffer
+      );
+      return new Uint8Array(decryptedBuffer);
+    } catch (e) {
+      throw new Error('Invalid passphrase or recovery key.');
+    }
+  }
+
+  // CryptoJS Fallback
+  const rawCipherText = wrappedVEKBase64.startsWith('cjs:') ? wrappedVEKBase64.slice(4) : wrappedVEKBase64;
+  try {
+    const saltHex = CryptoJS.enc.Hex.parse(Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join(''));
+    const ivHex = CryptoJS.enc.Hex.parse(Array.from(wrapIv).map((b) => b.toString(16).padStart(2, '0')).join(''));
+    const derivedKey = CryptoJS.PBKDF2(kekPassphrase, saltHex, {
+      keySize: 256 / 32,
+      iterations: PBKDF2_ITERATIONS,
+      hasher: CryptoJS.algo.SHA256,
+    });
+    const decrypted = CryptoJS.AES.decrypt(rawCipherText, derivedKey, {
+      iv: ivHex,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+    const hex = decrypted.toString(CryptoJS.enc.Hex);
+    if (!hex || hex.length !== 64) throw new Error('Invalid passphrase');
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+  } catch {
+    throw new Error('Invalid passphrase or recovery key.');
+  }
+}
+
+export async function encryptPayloadWithVEK(
+  data: any,
+  vekBytes: Uint8Array
+): Promise<{ cipherText: string; iv: string }> {
+  const iv = getRandomBytes(IV_SIZE);
+  if (isSubtleCryptoAvailable()) {
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      vekBytes,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(JSON.stringify(data));
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      encoded
+    );
+    return {
+      cipherText: arrayBufferToBase64(encryptedBuffer),
+      iv: arrayBufferToBase64(iv.buffer),
+    };
+  }
+
+  // CryptoJS Fallback
+  const vekHex = Array.from(vekBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const keyObj = CryptoJS.enc.Hex.parse(vekHex);
+  const ivHex = CryptoJS.enc.Hex.parse(Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), keyObj, {
+    iv: ivHex,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7,
+  });
+  return {
+    cipherText: 'cjs:' + encrypted.toString(),
+    iv: arrayBufferToBase64(iv.buffer),
+  };
+}
+
+export async function decryptPayloadWithVEK(
+  cipherText: string,
+  ivBase64: string,
+  vekBytes: Uint8Array
+): Promise<any> {
+  const iv = new Uint8Array(base64ToArrayBuffer(ivBase64));
+
+  if (!cipherText.startsWith('cjs:') && isSubtleCryptoAvailable()) {
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      vekBytes,
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+    const cipherBuffer = base64ToArrayBuffer(cipherText);
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      cipherBuffer
+    );
+    const decoder = new TextDecoder();
+    return JSON.parse(decoder.decode(decryptedBuffer));
+  }
+
+  // CryptoJS Fallback
+  const rawText = cipherText.startsWith('cjs:') ? cipherText.slice(4) : cipherText;
+  const vekHex = Array.from(vekBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const keyObj = CryptoJS.enc.Hex.parse(vekHex);
+  const ivHex = CryptoJS.enc.Hex.parse(Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  const decrypted = CryptoJS.AES.decrypt(rawText, keyObj, {
+    iv: ivHex,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7,
+  });
+  const jsonStr = decrypted.toString(CryptoJS.enc.Utf8);
+  if (!jsonStr) throw new Error('Failed to decrypt vault with VEK');
+  return JSON.parse(jsonStr);
+}
+
 export interface DerivedKeyBundle {
   cryptoKey: CryptoKey | null;     // WebCrypto derived key
   fallbackKeyHex: string | null;   // CryptoJS derived key hex representation
   saltBase64: string;              // Salt used to derive the key
 }
 
-/**
- * Derives the WebCrypto and CryptoJS keys from the master password and salt once.
- * Discard the plaintext password immediately after calling this.
- */
 export async function deriveKeyBundle(masterPassword: string, saltBase64: string): Promise<DerivedKeyBundle> {
   const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
   let cryptoKey: CryptoKey | null = null;
@@ -225,7 +415,6 @@ export async function deriveKeyBundle(masterPassword: string, saltBase64: string
     }
   }
 
-  // Always derive CryptoJS fallback key as backup or primary non-secure fallback
   const saltHex = CryptoJS.enc.Hex.parse(
     Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('')
   );
@@ -243,9 +432,6 @@ export async function deriveKeyBundle(masterPassword: string, saltBase64: string
   };
 }
 
-/**
- * Encrypts payload instantly using an already derived key bundle, bypassing PBKDF2.
- */
 export async function encryptVaultDataWithKey(
   data: any,
   keyBundle: DerivedKeyBundle
@@ -295,9 +481,6 @@ export async function encryptVaultDataWithKey(
   };
 }
 
-/**
- * Decrypts payload instantly using an already derived key bundle, bypassing PBKDF2.
- */
 export async function decryptVaultDataWithKey(
   cipherText: string,
   ivBase64: string,

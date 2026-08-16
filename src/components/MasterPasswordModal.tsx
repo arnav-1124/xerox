@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, KeyRound, ShieldAlert, CheckCircle2, Fingerprint } from 'lucide-react';
-import {
-  isBiometricsConfigured,
-  authenticateBiometrics,
-  isWebAuthnSupported,
-  registerBiometrics,
-} from '../lib/webauthn';
+import { Lock, KeyRound, ShieldAlert, Key } from 'lucide-react';
+import { defaultVaultService } from '../application/vault/VaultService';
 
 interface MasterPasswordModalProps {
   isOpen: boolean;
@@ -22,30 +17,22 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
 }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [recoveryKey, setRecoveryKey] = useState('');
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [setupBiometricMode, setSetupBiometricMode] = useState(false);
 
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutSecs, setLockoutSecs] = useState(0);
-  const [hasBiometrics, setHasBiometrics] = useState(false);
-  const [canSupportBiometrics, setCanSupportBiometrics] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    const configured = isBiometricsConfigured();
-    const supported = isWebAuthnSupported();
-    setHasBiometrics(configured);
-    setCanSupportBiometrics(supported);
-
-    // Auto-trigger biometric prompt on modal open if configured
-    if (!isInitialSetup && configured) {
-      const timer = setTimeout(() => {
-        handleBiometricUnlock();
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, isInitialSetup]);
+    setPassword('');
+    setConfirmPassword('');
+    setRecoveryKey('');
+    setError('');
+    setIsRecoveryMode(false);
+  }, [isOpen]);
 
   useEffect(() => {
     if (lockoutSecs <= 0) return;
@@ -57,40 +44,48 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleBiometricUnlock = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const decryptedPwd = await authenticateBiometrics();
-      const success = await onSubmitPassword(decryptedPwd, false);
-      if (!success) {
-        setError('Biometric authentication failed to unlock vault.');
-      } else {
-        setFailedAttempts(0);
-        setLockoutSecs(0);
-        setPassword('');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Biometric authentication was cancelled.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegisterBiometricsOnUnlock = async (masterPassword: string) => {
-    try {
-      await registerBiometrics(masterPassword);
-      setHasBiometrics(true);
-      setSetupBiometricMode(false);
-    } catch (e: any) {
-      console.warn('Could not register biometrics on unlock:', e);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockoutSecs > 0) return;
     setError('');
+
+    if (isRecoveryMode) {
+      if (!recoveryKey.trim()) {
+        setError('Please enter your 256-bit Recovery Key.');
+        return;
+      }
+      if (!password.trim()) {
+        setError('Please enter a new Master Password.');
+        return;
+      }
+      if (password.length < 8) {
+        setError('New Master Password must be at least 8 characters long.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Master Passwords do not match.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const success = await defaultVaultService.resetMasterPasswordWithRecoveryKey(recoveryKey.trim(), password);
+        if (success) {
+          await onSubmitPassword(password, false);
+          setPassword('');
+          setConfirmPassword('');
+          setRecoveryKey('');
+          setIsRecoveryMode(false);
+        } else {
+          setError('Invalid recovery key or corrupted vault payload.');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Recovery failed.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     if (!password.trim()) {
       setError('Master Password cannot be empty.');
@@ -98,184 +93,160 @@ export const MasterPasswordModal: React.FC<MasterPasswordModalProps> = ({
     }
 
     if (isInitialSetup) {
-      if (password.length < 6) {
-        setError('Master Password should be at least 6 characters.');
+      if (password.length < 8) {
+        setError('Master Password must be at least 8 characters long.');
         return;
       }
-
       if (password !== confirmPassword) {
-        setError('Master passwords do not match.');
+        setError('Master Passwords do not match.');
         return;
       }
     }
 
     setLoading(true);
+
     try {
       const success = await onSubmitPassword(password, isInitialSetup);
       if (!success) {
-        const nextAttempts = failedAttempts + 1;
-        setFailedAttempts(nextAttempts);
+        const newFailCount = failedAttempts + 1;
+        setFailedAttempts(newFailCount);
 
-        let seconds = 0;
-        if (nextAttempts >= 5) {
-          seconds = 60;
-        } else if (nextAttempts === 4) {
-          seconds = 15;
-        } else if (nextAttempts === 3) {
-          seconds = 5;
-        }
-
-        if (seconds > 0) {
-          setLockoutSecs(seconds);
-          setError(`Too many failed attempts. Locked out for ${seconds} seconds.`);
+        if (newFailCount >= 5) {
+          setLockoutSecs(60);
+          setError('Too many failed attempts. Security lockout active for 60 seconds.');
+        } else if (newFailCount === 4) {
+          setLockoutSecs(15);
+          setError('Incorrect master password. Security delay active for 15 seconds.');
+        } else if (newFailCount === 3) {
+          setLockoutSecs(5);
+          setError('Incorrect master password. Security delay active for 5 seconds.');
         } else {
-          setError('Incorrect Master Password. Please try again.');
+          setError('Incorrect master password. Please try again.');
         }
       } else {
-        // If biometrics pairing was requested or enabled
-        if (canSupportBiometrics && (!hasBiometrics || setupBiometricMode)) {
-          await handleRegisterBiometricsOnUnlock(password);
-        }
-
         setFailedAttempts(0);
         setLockoutSecs(0);
         setPassword('');
         setConfirmPassword('');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred.');
+      setError(err.message || 'Unlock failed.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-popover border border-border rounded-2xl p-7 shadow-2xl text-popover-foreground relative">
-        <div className="text-center space-y-3 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center mx-auto text-2xl shadow-sm">
-            🔐
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-popover border border-border rounded-2xl p-6 shadow-2xl space-y-6 relative text-foreground">
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center shadow-inner">
+            {isRecoveryMode ? <Key className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">
-              {isInitialSetup ? 'Create Your Local Vault' : 'Unlock Xerox Vault'}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
-              {isInitialSetup
-                ? 'Your master password derives an AES-GCM 256-bit key locally on your device. Zero cloud. Zero server.'
-                : 'Enter your Master Password or scan biometrics to decrypt your vault.'}
-            </p>
-          </div>
+          <h2 className="text-xl font-bold tracking-tight">
+            {isInitialSetup
+              ? 'Create Master Password'
+              : isRecoveryMode
+              ? 'Restore Vault with Recovery Key'
+              : 'Unlock Xerox Vault'}
+          </h2>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            {isInitialSetup
+              ? 'Set a strong master password. This encrypts your vault locally using 256-bit AES-GCM envelope encryption.'
+              : isRecoveryMode
+              ? 'Enter your 256-bit emergency recovery key to unwrap your vault key and set a new master password.'
+              : 'Enter your master password to decrypt your zero-knowledge local vault.'}
+          </p>
         </div>
 
-        {isInitialSetup && (
-          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl mb-5 text-[11px] text-amber-700 dark:text-amber-300 leading-normal flex gap-2">
-            <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <div>
-              <strong className="block text-amber-800 dark:text-amber-200 mb-0.5">Zero-Recovery Local Privacy</strong>
-              If you lose your Master Password, there is no server-side recovery. Keep it safe!
-            </div>
+        {error && (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Biometrics Configured Button */}
-        {!isInitialSetup && hasBiometrics && (
-          <button
-            type="button"
-            onClick={handleBiometricUnlock}
-            disabled={loading}
-            className="w-full mb-4 py-3 px-4 rounded-xl bg-purple-600/10 border border-purple-500/30 text-purple-600 dark:text-purple-300 hover:bg-purple-600/20 font-semibold transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-xs"
-          >
-            <Fingerprint className="w-5 h-5 text-purple-500 animate-pulse" />
-            <span>Unlock with Biometrics (Touch ID / Windows Hello)</span>
-          </button>
+        {lockoutSecs > 0 && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-400 font-semibold text-center">
+            Security Lockout Active: Retry in {lockoutSecs}s
+          </div>
         )}
 
-        {/* Biometrics Supported but Not Configured Yet Banner */}
-        {!isInitialSetup && canSupportBiometrics && !hasBiometrics && (
-          <div className="mb-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-300 font-medium">
-              <Fingerprint className="w-4 h-4 text-purple-500 shrink-0" />
-              <span>Enable Touch ID / Windows Hello</span>
-            </div>
-            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-purple-600 dark:text-purple-300 font-semibold">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRecoveryMode && (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-foreground">Emergency Recovery Key</label>
               <input
-                type="checkbox"
-                checked={setupBiometricMode}
-                onChange={(e) => setSetupBiometricMode(e.target.checked)}
-                className="rounded border-purple-400 text-purple-600"
+                type="text"
+                value={recoveryKey}
+                onChange={(e) => setRecoveryKey(e.target.value)}
+                placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
-              <span>Pair on Unlock</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">
+              {isRecoveryMode ? 'New Master Password' : 'Master Password'}
             </label>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div>
-            <label className="block text-foreground font-medium mb-1.5">Master Password</label>
-            <input
-              type="password"
-              required
-              autoFocus
-              placeholder="Enter Master Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={lockoutSecs > 0}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-          </div>
-
-          {isInitialSetup && (
-            <div>
-              <label className="block text-foreground font-medium mb-1.5">Confirm Master Password</label>
+            <div className="relative">
               <input
                 type="password"
-                required
-                placeholder="Re-enter Master Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={lockoutSecs > 0}
+                placeholder="••••••••••••"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition disabled:opacity-50"
+                autoFocus
+              />
+              <KeyRound className="w-4 h-4 absolute right-3.5 top-3 text-muted-foreground" />
+            </div>
+          </div>
+
+          {(isInitialSetup || isRecoveryMode) && (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-foreground">Confirm Master Password</label>
+              <input
+                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors text-sm"
+                disabled={lockoutSecs > 0}
+                placeholder="••••••••••••"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-muted border border-border text-foreground text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition disabled:opacity-50"
               />
             </div>
           )}
 
-          {error && <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs text-center font-medium">{error}</div>}
+          <button
+            type="submit"
+            disabled={loading || lockoutSecs > 0}
+            className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-lg shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
+          >
+            {loading
+              ? 'Decrypting Vault...'
+              : isInitialSetup
+              ? 'Initialize Encrypted Vault'
+              : isRecoveryMode
+              ? 'Recover Vault & Reset Password'
+              : 'Unlock Vault'}
+          </button>
+        </form>
 
-          <div className="pt-2">
+        {!isInitialSetup && (
+          <div className="text-center pt-1">
             <button
-              type="submit"
-              disabled={loading || lockoutSecs > 0}
-              className={`w-full py-2.5 px-4 rounded-xl font-semibold text-white shadow-sm transition-all flex items-center justify-center gap-2 text-xs cursor-pointer ${
-                lockoutSecs > 0
-                  ? 'bg-muted-foreground/30 text-muted-foreground cursor-not-allowed border border-border'
-                  : 'bg-blue-600 hover:bg-blue-500 shadow-sm shadow-blue-500/10'
-              }`}
+              type="button"
+              onClick={() => {
+                setIsRecoveryMode(!isRecoveryMode);
+                setError('');
+              }}
+              className="text-xs text-blue-500 hover:text-blue-400 font-medium underline transition cursor-pointer"
             >
-              <KeyRound className="w-4 h-4" />
-              <span>
-                {loading
-                  ? 'Decrypting Vault...'
-                  : lockoutSecs > 0
-                  ? `Locked out (${lockoutSecs}s)`
-                  : isInitialSetup
-                  ? 'Create Local Vault'
-                  : 'Unlock Vault'}
-              </span>
+              {isRecoveryMode ? '← Back to Master Password Unlock' : 'Forgot Master Password? Use Recovery Key'}
             </button>
           </div>
-
-          {!isInitialSetup && onClose && (
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                Cancel / Keep Locked
-              </button>
-            </div>
-          )}
-        </form>
+        )}
       </div>
     </div>
   );

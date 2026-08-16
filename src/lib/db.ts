@@ -145,12 +145,14 @@ export async function deleteCategoryDB(id: string): Promise<void> {
   });
 }
 
+declare const chrome: any;
+
 // === ENCRYPTED VAULT META ===
 
 export interface VaultMetadata {
   isInitialized: boolean;
   salt: string;
-  verifier: string;
+  verifier?: string;
   encryptedVault?: EncryptedVaultData;
 }
 
@@ -191,6 +193,23 @@ export async function saveVaultMeta(meta: VaultMetadata): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function clearVaultMeta(): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('vault_meta', 'readwrite');
+  tx.objectStore('vault_meta').delete('metadata');
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => {
+      try {
+        localStorage.removeItem('xerox_vault_meta_sync');
+      } catch (e) {}
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+
 
 // === SETTINGS ===
 
