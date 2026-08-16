@@ -253,6 +253,16 @@
     }, (res) => {
       if (res && res.success && res.credential) {
         closeAllModals();
+
+        if (!res.credential.username && !res.credential.password) {
+          const domainName = window.location.hostname.replace(/^www\./, '');
+          showNoticeModal(
+            'Credentials Not Set Up',
+            `Credentials are not set up for domain: ${domainName}\n\nThis entry exists in your vault (e.g., synced from bookmarks) but has no saved username or password.\n\nPlease edit this entry in your Xerox Password Vault to add your username and password.`
+          );
+          return;
+        }
+
         if (res.credential.totpCode) {
           try { navigator.clipboard.writeText(res.credential.totpCode); } catch (e) {}
         }

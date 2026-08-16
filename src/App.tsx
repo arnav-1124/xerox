@@ -371,19 +371,71 @@ export default function App() {
     }
   };
 
+  const normalizeHost = (str: string) => {
+    if (!str) return '';
+    try {
+      const raw = str.startsWith('http') ? str : `https://${str}`;
+      return new URL(raw).hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+      return str.trim().toLowerCase();
+    }
+  };
+
   // Bookmark handlers
   const handleSaveBookmark = async (bookmark: Bookmark) => {
     const existingIndex = bookmarks.findIndex((b) => b.id === bookmark.id);
-    let updated: Bookmark[];
+    let updatedBookmarks: Bookmark[];
     if (existingIndex >= 0) {
-      updated = [...bookmarks];
-      updated[existingIndex] = bookmark;
+      updatedBookmarks = [...bookmarks];
+      updatedBookmarks[existingIndex] = bookmark;
     } else {
-      updated = [bookmark, ...bookmarks];
+      updatedBookmarks = [bookmark, ...bookmarks];
     }
-    setBookmarks(updated);
+    setBookmarks(updatedBookmarks);
     await saveBookmark(bookmark);
-    addToast(existingIndex >= 0 ? 'Bookmark updated' : 'Bookmark added', 'success');
+
+    // Sync to Password Vault if unlocked
+    if (isUnlocked && decryptedPasswords) {
+      const bmHost = normalizeHost(bookmark.url || bookmark.title);
+      const existingPwdIndex = decryptedPasswords.findIndex(
+        (p) => normalizeHost(p.websiteUrl || p.websiteName) === bmHost
+      );
+
+      let updatedPwds: PasswordEntry[];
+      if (existingPwdIndex >= 0) {
+        const existing = decryptedPasswords[existingPwdIndex];
+        const syncedPwd: PasswordEntry = {
+          ...existing,
+          websiteName: bookmark.title,
+          websiteUrl: bookmark.url || existing.websiteUrl,
+          category: bookmark.category || existing.category,
+          tags: bookmark.tags || existing.tags,
+          isFavorite: bookmark.isFavorite !== undefined ? bookmark.isFavorite : existing.isFavorite,
+          notes: bookmark.description || existing.notes,
+          updatedAt: Date.now(),
+        };
+        updatedPwds = [...decryptedPasswords];
+        updatedPwds[existingPwdIndex] = syncedPwd;
+      } else {
+        const newPwd: PasswordEntry = {
+          id: 'pwd-sync-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+          websiteName: bookmark.title,
+          websiteUrl: bookmark.url,
+          username: '',
+          password: '',
+          category: bookmark.category || 'General',
+          tags: bookmark.tags || [],
+          isFavorite: !!bookmark.isFavorite,
+          notes: bookmark.description || '',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        updatedPwds = [newPwd, ...decryptedPasswords];
+      }
+      await saveAndEncryptPasswords(updatedPwds);
+    }
+
+    addToast(existingIndex >= 0 ? 'Bookmark updated & synced' : 'Bookmark added & synced to vault', 'success');
   };
 
   const handleToggleBookmarkFavorite = async (id: string) => {
@@ -413,15 +465,55 @@ export default function App() {
   // Password Vault handlers
   const handleSavePassword = async (entry: PasswordEntry) => {
     const existingIndex = decryptedPasswords.findIndex((p) => p.id === entry.id);
-    let updated: PasswordEntry[];
+    let updatedPwds: PasswordEntry[];
     if (existingIndex >= 0) {
-      updated = [...decryptedPasswords];
-      updated[existingIndex] = entry;
+      updatedPwds = [...decryptedPasswords];
+      updatedPwds[existingIndex] = entry;
     } else {
-      updated = [entry, ...decryptedPasswords];
+      updatedPwds = [entry, ...decryptedPasswords];
     }
-    await saveAndEncryptPasswords(updated);
-    addToast(existingIndex >= 0 ? 'Password entry updated' : 'Password stored securely', 'success');
+    await saveAndEncryptPasswords(updatedPwds);
+
+    // Sync to Bookmarks
+    const pwdHost = normalizeHost(entry.websiteUrl || entry.websiteName);
+    const existingBmIndex = bookmarks.findIndex(
+      (b) => normalizeHost(b.url || b.title) === pwdHost
+    );
+
+    let updatedBookmarks: Bookmark[];
+    if (existingBmIndex >= 0) {
+      const existing = bookmarks[existingBmIndex];
+      const syncedBm: Bookmark = {
+        ...existing,
+        title: entry.websiteName,
+        url: entry.websiteUrl || existing.url,
+        category: entry.category || existing.category,
+        tags: entry.tags || existing.tags,
+        isFavorite: entry.isFavorite !== undefined ? entry.isFavorite : existing.isFavorite,
+        description: entry.notes || existing.description,
+        updatedAt: Date.now(),
+      };
+      updatedBookmarks = [...bookmarks];
+      updatedBookmarks[existingBmIndex] = syncedBm;
+      await saveBookmark(syncedBm);
+    } else {
+      const newBm: Bookmark = {
+        id: 'bm-sync-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+        title: entry.websiteName,
+        url: entry.websiteUrl || (entry.websiteName.startsWith('http') ? entry.websiteName : `https://${entry.websiteName.toLowerCase().replace(/\s+/g, '')}.com`),
+        category: entry.category || 'General',
+        tags: entry.tags || [],
+        isFavorite: !!entry.isFavorite,
+        description: entry.notes || '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      updatedBookmarks = [newBm, ...bookmarks];
+      await saveBookmark(newBm);
+    }
+    setBookmarks(updatedBookmarks);
+
+    addToast(existingIndex >= 0 ? 'Password entry updated & synced' : 'Password stored securely & synced to bookmarks', 'success');
   };
 
   const handleTogglePasswordFavorite = async (id: string) => {

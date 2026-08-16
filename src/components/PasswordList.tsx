@@ -3,6 +3,7 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Check,
   ExternalLink,
   Star,
   Edit3,
@@ -37,7 +38,12 @@ interface PasswordListProps {
   categories: Category[];
 }
 
-const TOTPBadge: React.FC<{ secret: string; onCopy: (code: string) => void }> = ({ secret, onCopy }) => {
+const TOTPBadge: React.FC<{
+  secret: string;
+  copyKey: string;
+  copied: boolean;
+  onCopy: (code: string) => void;
+}> = ({ secret, copyKey, copied, onCopy }) => {
   const [code, setCode] = useState<string>('------');
   const [remaining, setRemaining] = useState<number>(30);
 
@@ -74,7 +80,11 @@ const TOTPBadge: React.FC<{ secret: string; onCopy: (code: string) => void }> = 
         className="p-1 hover:bg-emerald-500/20 rounded transition-colors cursor-pointer"
         title="Copy 2FA Code"
       >
-        <Copy className="w-3 h-3" />
+        {copied ? (
+          <Check className="w-3 h-3 text-emerald-500 animate-in zoom-in duration-150" />
+        ) : (
+          <Copy className="w-3 h-3" />
+        )}
       </button>
     </div>
   );
@@ -95,30 +105,44 @@ export const PasswordList: React.FC<PasswordListProps> = ({
   categories,
 }) => {
   const [revealedMap, setRevealedMap] = useState<Record<string, boolean>>({});
+  const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const toggleReveal = (id: string) => {
     setRevealedMap((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Collect all unique hashtags (#work, #personal, #banking, etc.) from entries
-  const allTags = Array.from(
-    new Set(
-      passwords.flatMap((p) => {
-        const text = `${p.websiteName} ${p.notes || ''} ${p.category}`;
-        const matches = text.match(/#[a-zA-Z0-9_-]+/g);
-        return matches ? matches.map((t) => t.toLowerCase()) : [];
-      })
-    )
-  );
+  const triggerCopy = (text: string, label: string, key: string) => {
+    onCopyText(text, label);
+    setCopiedMap((prev) => ({ ...prev, [key]: true }));
+    setTimeout(() => {
+      setCopiedMap((prev) => ({ ...prev, [key]: false }));
+    }, 1600);
+  };
 
-  const targetCategoryObj = categories.find((c) => c.id === selectedCategory || c.name === selectedCategory);
+  const handleRedirect = (targetUrl: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!targetUrl) return;
+    let url = targetUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const targetCategoryObj = categories.find(
+    (c) => c.id === selectedCategory || c.name === selectedCategory
+  );
   const { ids: allowedIds, names: allowedNames } = targetCategoryObj
     ? getDescendantCategoryIdsAndNames(targetCategoryObj.id, categories)
     : { ids: [], names: [] };
 
-  const selectedCategoryObj = categories.find((c) => c.id === selectedCategory || c.name === selectedCategory);
-  const headerTitle = selectedCategoryObj ? getCategoryPath(selectedCategoryObj.id, categories) : '';
+  const selectedCategoryObj = categories.find(
+    (c) => c.id === selectedCategory || c.name === selectedCategory
+  );
+  const headerTitle = selectedCategoryObj
+    ? getCategoryPath(selectedCategoryObj.id, categories)
+    : '';
 
   const filteredPasswords = passwords.filter((p) => {
     const matchesCategory = selectedCategory
@@ -126,24 +150,33 @@ export const PasswordList: React.FC<PasswordListProps> = ({
       : true;
 
     const q = searchQuery.toLowerCase();
+    const tagsString = (p.websiteName + ' ' + (p.notes || '')).toLowerCase();
+
     const matchesSearch =
       !searchQuery ||
       p.websiteName.toLowerCase().includes(q) ||
-      p.websiteUrl.toLowerCase().includes(q) ||
+      (p.websiteUrl && p.websiteUrl.toLowerCase().includes(q)) ||
       p.username.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q);
+      p.category.toLowerCase().includes(q) ||
+      (p.notes && p.notes.toLowerCase().includes(q));
 
-    const matchesTag =
-      !selectedTag ||
-      `${p.websiteName} ${p.notes || ''} ${p.category}`.toLowerCase().includes(selectedTag.toLowerCase());
+    const matchesTag = !selectedTag || tagsString.includes(selectedTag.toLowerCase());
 
     return matchesCategory && matchesSearch && matchesTag;
   });
 
+  const allTags = Array.from(
+    new Set(
+      passwords.flatMap((p) =>
+        (p.websiteName + ' ' + (p.notes || '')).match(/#[a-zA-Z0-9_-]+/g) || []
+      )
+    )
+  );
+
   if (!isUnlocked) {
     return (
-      <div className="p-12 max-w-lg mx-auto text-center space-y-6 mt-12 bg-card border border-border rounded-2xl shadow-sm">
-        <div className="w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive flex items-center justify-center mx-auto text-2xl shadow-sm">
+      <div className="p-8 sm:p-12 max-w-lg mx-auto text-center space-y-6 mt-12 bg-card border border-border rounded-2xl shadow-sm">
+        <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-500 flex items-center justify-center mx-auto text-2xl shadow-sm">
           🔒
         </div>
         <div className="space-y-2">
@@ -233,7 +266,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
           <div className="grid grid-cols-1 md:hidden gap-3">
             {filteredPasswords.map((item) => {
               const isRevealed = revealedMap[item.id];
-              const itemTags = (item.websiteName + ' ' + (item.notes || '')).match(/#[a-zA-Z0-9_-]+/g) || [];
+              const targetUrl = item.websiteUrl || item.websiteName;
 
               return (
                 <div
@@ -244,18 +277,17 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground truncate">{item.websiteName}</span>
-                        {item.websiteUrl && (
-                          <a
-                            href={item.websiteUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-foreground shrink-0"
+                        {targetUrl && (
+                          <button
+                            onClick={(e) => handleRedirect(targetUrl, e)}
+                            className="text-muted-foreground hover:text-blue-500 shrink-0 p-0.5 cursor-pointer"
+                            title={`Open ${targetUrl}`}
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
+                          </button>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">{item.username}</div>
+                      <div className="text-xs text-muted-foreground truncate">{item.username || '(No username set)'}</div>
                     </div>
                     <button
                       onClick={() => onToggleFavorite(item.id)}
@@ -265,16 +297,31 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                     </button>
                   </div>
 
-                  {item.totpSecret && <TOTPBadge secret={item.totpSecret} onCopy={(code) => onCopyText(code, '2FA Code')} />}
+                  {item.totpSecret && (
+                    <TOTPBadge
+                      secret={item.totpSecret}
+                      copyKey={`totp-${item.id}`}
+                      copied={!!copiedMap[`totp-${item.id}`]}
+                      onCopy={(code) => triggerCopy(code, '2FA Code', `totp-${item.id}`)}
+                    />
+                  )}
 
                   <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <span className="text-[11px] font-mono">{isRevealed ? item.password : '••••••••••••'}</span>
+                    <span className="text-[11px] font-mono">{isRevealed ? (item.password || '(No password set)') : '••••••••••••'}</span>
                     <div className="flex items-center gap-1">
                       <button onClick={() => toggleReveal(item.id)} className="p-1 text-muted-foreground hover:text-foreground">
                         {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
-                      <button onClick={() => onCopyText(item.password, 'Password')} className="p-1 text-muted-foreground hover:text-foreground">
-                        <Copy className="w-4 h-4" />
+                      <button
+                        onClick={() => triggerCopy(item.password, 'Password', `pwd-${item.id}`)}
+                        className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Copy Password"
+                      >
+                        {copiedMap[`pwd-${item.id}`] ? (
+                          <Check className="w-4 h-4 text-emerald-500 animate-in zoom-in duration-150" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
                       </button>
                       <button onClick={() => onEdit(item)} className="p-1 text-muted-foreground hover:text-foreground">
                         <Edit3 className="w-4 h-4" />
@@ -305,6 +352,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                 {filteredPasswords.map((item) => {
                   const isRevealed = revealedMap[item.id];
                   const itemTags = (item.websiteName + ' ' + (item.notes || '')).match(/#[a-zA-Z0-9_-]+/g) || [];
+                  const targetUrl = item.websiteUrl || item.websiteName;
 
                   return (
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors">
@@ -317,6 +365,15 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                             <Star className="w-3.5 h-3.5 fill-current" />
                           </button>
                           <span className="font-semibold">{item.websiteName}</span>
+                          {targetUrl && (
+                            <button
+                              onClick={(e) => handleRedirect(targetUrl, e)}
+                              className="p-0.5 text-muted-foreground hover:text-blue-500 transition-colors cursor-pointer"
+                              title={`Open ${targetUrl}`}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {itemTags.map((tg) => (
                             <span key={tg} className="text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20">
                               {tg}
@@ -326,37 +383,77 @@ export const PasswordList: React.FC<PasswordListProps> = ({
                       </td>
                       <td className="py-3 px-4 text-muted-foreground font-mono">
                         <div className="flex items-center gap-1.5">
-                          <span>{item.username}</span>
-                          <button onClick={() => onCopyText(item.username, 'Username')} className="p-0.5 text-muted-foreground hover:text-foreground">
-                            <Copy className="w-3 h-3" />
-                          </button>
+                          <span>{item.username || <em className="text-muted-foreground/60 font-sans text-[11px]">(No username)</em>}</span>
+                          {item.username && (
+                            <button
+                              onClick={() => triggerCopy(item.username, 'Username', `usr-${item.id}`)}
+                              className="p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Copy Username"
+                            >
+                              {copiedMap[`usr-${item.id}`] ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-500 animate-in zoom-in duration-150" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 font-mono">
                         <div className="flex items-center gap-1.5">
-                          <span>{isRevealed ? item.password : '••••••••••••'}</span>
-                          <button onClick={() => toggleReveal(item.id)} className="p-0.5 text-muted-foreground hover:text-foreground">
-                            {isRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          </button>
-                          <button onClick={() => onCopyText(item.password, 'Password')} className="p-0.5 text-muted-foreground hover:text-foreground">
-                            <Copy className="w-3 h-3" />
-                          </button>
+                          <span>{isRevealed ? (item.password || <em className="text-muted-foreground/60 font-sans text-[11px]">(No password)</em>) : '••••••••••••'}</span>
+                          {item.password && (
+                            <>
+                              <button onClick={() => toggleReveal(item.id)} className="p-0.5 text-muted-foreground hover:text-foreground cursor-pointer">
+                                {isRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              </button>
+                              <button
+                                onClick={() => triggerCopy(item.password, 'Password', `pwd-${item.id}`)}
+                                className="p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="Copy Password"
+                              >
+                                {copiedMap[`pwd-${item.id}`] ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500 animate-in zoom-in duration-150" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        {item.totpSecret ? <TOTPBadge secret={item.totpSecret} onCopy={(code) => onCopyText(code, '2FA Code')} /> : <span className="text-muted-foreground opacity-50">—</span>}
+                        {item.totpSecret ? (
+                          <TOTPBadge
+                            secret={item.totpSecret}
+                            copyKey={`totp-${item.id}`}
+                            copied={!!copiedMap[`totp-${item.id}`]}
+                            onCopy={(code) => triggerCopy(code, '2FA Code', `totp-${item.id}`)}
+                          />
+                        ) : (
+                          <span className="text-muted-foreground opacity-50">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {targetUrl && (
+                            <button
+                              onClick={(e) => handleRedirect(targetUrl, e)}
+                              className="p-1 text-muted-foreground hover:text-blue-500 transition-colors cursor-pointer"
+                              title={`Open ${targetUrl}`}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {onShare && (
-                            <button onClick={() => onShare(item)} className="p-1 text-muted-foreground hover:text-foreground" title="Zero-Knowledge Share">
+                            <button onClick={() => onShare(item)} className="p-1 text-muted-foreground hover:text-foreground cursor-pointer" title="Zero-Knowledge Share">
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button onClick={() => onEdit(item)} className="p-1 text-muted-foreground hover:text-foreground" title="Edit Entry">
+                          <button onClick={() => onEdit(item)} className="p-1 text-muted-foreground hover:text-foreground cursor-pointer" title="Edit Entry">
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => onDelete(item.id)} className="p-1 text-muted-foreground hover:text-destructive" title="Delete Entry">
+                          <button onClick={() => onDelete(item.id)} className="p-1 text-muted-foreground hover:text-destructive cursor-pointer" title="Delete Entry">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
