@@ -54,10 +54,16 @@ npx tsx src/tests/cryptoP0Remediation.test.ts
 # 5. Run P1 WebAuthn PRF & Tamper Hardening Suite
 npx tsx src/tests/cryptoP1WebAuthn.test.ts
 
-# 6. Execute 31-point real-world extension validation suite
+# 6. Run WebRTC Local P2P Sync & Merge Suite
+npx tsx src/tests/webrtc.test.ts
+
+# 7. Run DuckDuckGo API Endpoint Suite
+npx tsx src/tests/duckAlias.test.ts
+
+# 8. Execute 31-point real-world extension validation suite
 npm run test:extension
 
-# 7. Build production web bundle
+# 9. Build production web bundle
 npm run build
 ```
 

@@ -76,8 +76,14 @@ npx tsx src/tests/cryptoP0Remediation.test.ts
 # 2. P1 WebAuthn PRF & Tamper Hardening Suite
 npx tsx src/tests/cryptoP1WebAuthn.test.ts
 
-# 3. Real-World Extension Suite
+# 3. WebRTC P2P Sync & Merge Suite
+npx tsx src/tests/webrtc.test.ts
+
+# 4. DuckDuckGo API Endpoint Suite
+npx tsx src/tests/duckAlias.test.ts
+
+# 5. Real-World Extension Suite
 node real_world_validation.cjs
 ```
 
-All 70 test assertions pass cleanly along with `npm run lint` and `npm run build`.
+All test assertions pass cleanly along with `npm run build`.
