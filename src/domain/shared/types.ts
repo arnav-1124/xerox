@@ -14,6 +14,7 @@ export type ViewMode =
   | 'home'
   | 'bookmarks'
   | 'passwords'
+  | 'masked-emails'
   | 'notes'
   | 'cards'
   | 'identities'

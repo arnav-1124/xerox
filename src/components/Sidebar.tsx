@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Bookmark, KeyRound, Star, Folder, FolderOpen, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, ChevronDown, Wand2, Database, FileText, Clock, Plus } from 'lucide-react';
+import { Home, Bookmark, KeyRound, Star, Folder, FolderOpen, Settings, Puzzle, Lock, Shield, ShieldCheck, BookOpen, ChevronLeft, ChevronRight, ChevronDown, Wand2, Database, FileText, Clock, Plus, Mail } from 'lucide-react';
 import { Category, ViewMode } from '../types';
 import { CategoryNode, buildCategoryTree } from '../lib/categoryHelper';
 
@@ -13,6 +13,7 @@ interface SidebarProps {
   onOpenCategoryManager: (defaultParentId?: string) => void;
   bookmarkCount: number;
   passwordCount: number;
+  maskedEmailCount?: number;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
 }
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCategoryManager,
   bookmarkCount,
   passwordCount,
+  maskedEmailCount = 0,
   isMobileOpen = false,
   onCloseMobile,
 }) => {
@@ -129,6 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'blog' as ViewMode, label: 'Feature Guide & Docs', icon: BookOpen },
     { id: 'bookmarks' as ViewMode, label: 'Bookmarks', icon: Bookmark, badge: bookmarkCount },
     { id: 'passwords' as ViewMode, label: 'Password Vault', icon: KeyRound, badge: isUnlocked ? passwordCount : '🔒' },
+    { id: 'masked-emails' as ViewMode, label: 'Masked Emails', icon: Mail, badge: isUnlocked ? maskedEmailCount : '🔒' },
     { id: 'totp' as ViewMode, label: '2FA TOTP Codes', icon: Clock },
     { id: 'files' as ViewMode, label: 'Encrypted Files', icon: FileText },
     { id: 'generator' as ViewMode, label: 'Password Studio', icon: Wand2 },

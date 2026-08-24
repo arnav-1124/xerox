@@ -67,6 +67,7 @@ import { StandaloneGeneratorView } from './components/StandaloneGeneratorView';
 import { ImportExportView } from './components/ImportExportView';
 import { FileVaultView } from './components/FileVaultView';
 import { TotpAuthenticatorView } from './components/TotpAuthenticatorView';
+import { MaskedEmailsView } from './components/MaskedEmailsView';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { BackupPasswordModal } from './components/BackupPasswordModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -1177,6 +1178,7 @@ export default function App() {
         onOpenCategoryManager={handleOpenCategoryManager}
         bookmarkCount={bookmarks.length}
         passwordCount={decryptedPasswords.length}
+        maskedEmailCount={decryptedPasswords.filter((p) => p.username.toLowerCase().endsWith('@duck.com')).length}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
@@ -1379,6 +1381,19 @@ export default function App() {
                 setEditingPassword(entry);
                 setIsPasswordModalOpen(true);
               }}
+            />
+          )}
+
+          {currentView === 'masked-emails' && (
+            <MaskedEmailsView
+              passwords={decryptedPasswords}
+              isUnlocked={isUnlocked}
+              onUnlockClick={() => setIsMasterPasswordModalOpen(true)}
+              onEditPassword={(entry) => {
+                setEditingPassword(entry);
+                setIsPasswordModalOpen(true);
+              }}
+              addToast={addToast}
             />
           )}
 
