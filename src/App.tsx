@@ -68,6 +68,7 @@ import { ImportExportView } from './components/ImportExportView';
 import { FileVaultView } from './components/FileVaultView';
 import { TotpAuthenticatorView } from './components/TotpAuthenticatorView';
 import { MaskedEmailsView } from './components/MaskedEmailsView';
+import { PeerSyncModal } from './components/PeerSyncModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { BackupPasswordModal } from './components/BackupPasswordModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -186,6 +187,7 @@ export default function App() {
   };
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isExtensionGuideOpen, setIsExtensionGuideOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Secure Zero-Knowledge Share States
@@ -687,6 +689,17 @@ export default function App() {
     setSettingsState(newSettings);
     await saveSettings(newSettings);
     addToast('Settings updated', 'success');
+  };
+
+  const handleSyncComplete = async (newPasswords: PasswordEntry[], newCategories: Category[]) => {
+    try {
+      setCategories(newCategories);
+      await saveAllCategories(newCategories);
+      await saveAndEncryptPasswords(newPasswords);
+    } catch (err: any) {
+      console.error('Sync complete error', err);
+      addToast('Error saving synchronized vault data.', 'error');
+    }
   };
 
   const handleExportJSON = async (encrypted: boolean) => {
@@ -1407,6 +1420,7 @@ export default function App() {
               onResetVault={handleResetVault}
               isUnlocked={isUnlocked}
               onOpenExtensionGuide={() => setIsExtensionGuideOpen(true)}
+              onOpenSyncModal={() => setIsSyncModalOpen(true)}
             />
           )}
 
@@ -1527,6 +1541,15 @@ export default function App() {
         isDestructive={confirmDialog?.isDestructive}
         onConfirm={confirmDialog?.onConfirm || (() => {})}
         onClose={confirmDialog?.onCancel || (() => {})}
+      />
+
+      <PeerSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        localPasswords={decryptedPasswords}
+        localCategories={categories}
+        onSyncComplete={handleSyncComplete}
+        addToast={addToast}
       />
 
       {/* Toast Notifications */}

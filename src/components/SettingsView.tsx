@@ -28,6 +28,7 @@ interface SettingsViewProps {
   onResetVault: () => void;
   isUnlocked: boolean;
   onOpenExtensionGuide: () => void;
+  onOpenSyncModal?: () => void;
   addToast?: (text: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -40,6 +41,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onResetVault,
   isUnlocked,
   onOpenExtensionGuide,
+  onOpenSyncModal,
   addToast,
 }) => {
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -271,6 +273,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span>Encrypted Cloud Sync</span>
             <span className="bg-muted-foreground/20 text-muted-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">Coming Later</span>
           </div>
+          {onOpenSyncModal && (
+            <button
+              onClick={onOpenSyncModal}
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 transition shadow-sm cursor-pointer"
+            >
+              Start Peer-to-Peer Device Sync (WebRTC)
+            </button>
+          )}
         </div>
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">

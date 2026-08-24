@@ -38,6 +38,7 @@ Xerox is fully featured and production-ready:
 * **Local Security Audits**: Performs password audits using dictionary attacks, length audits, and the HaveIBeenPwned API (via K-Anonymity privacy hashes).
 * **Command Palette**: Pressing `Ctrl + K` or `Cmd + K` opens a quick-search utility overlay across all passwords and bookmarks.
 * **DuckDuckGo Email Protection**: Programmatic generation of private `@duck.com` email aliases via Vercel serverless proxy endpoint `/api/duck-alias` (to bypass CORS and bot detection).
+* **WebRTC Local Device Sync**: A local-first peer-to-peer sync using browser `RTCPeerConnection` APIs, supporting Vanilla ICE for single QR Code scans/manual copy-paste, and room pin connections over public WebSocket signaling servers.
 
 ---
 
@@ -84,7 +85,7 @@ Xerox is optimized for visibility, search rankings, and performance:
 
 For any future developers (human or AI), here are the recommended next steps to build on top of Xerox's local-first architecture:
 
-1. **WebRTC Local Peer-to-Peer Sync**: Implement a direct local network sync between your computer's browser and phone's browser using WebRTC (no cloud account needed).
+1. **WebRTC Local Peer-to-Peer Sync (DONE)**: Direct local network sync between your computer's browser and phone's browser using WebRTC, with QR Code camera scan and broker room PIN options.
 2. **Browser Native Autofill Integration (Credential Management API)**: Integrate the Web Credential Management API to allow browsers to save and suggest Xerox passwords natively.
 3. **Disposable/Masked Email Aliases (DONE)**: Fully integrated DuckDuckGo Email Protection for random alias generation inside the password generator.
 4. **IndexedDB Backup Shard System**: Encrypt backup files locally and automatically upload them to Web3/decentralized storage (like IPFS, Arweave, or Filecoin) using user-provided keys.

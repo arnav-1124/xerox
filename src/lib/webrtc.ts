@@ -1,4 +1,62 @@
 import JSZip from 'jszip';
+import { PasswordEntry, Category } from '../types';
+
+export function mergeVaultData(
+  localPasswords: PasswordEntry[],
+  localCategories: Category[],
+  incomingPasswords: PasswordEntry[],
+  incomingCategories: Category[]
+) {
+  const mergedPasswords = [...localPasswords];
+  const mergedCategories = [...localCategories];
+
+  let addedPass = 0;
+  let updatedPass = 0;
+  let addedCat = 0;
+  let updatedCat = 0;
+
+  // Merge Categories
+  incomingCategories.forEach((incCat) => {
+    const existingIndex = mergedCategories.findIndex(
+      (c) => c.id === incCat.id || c.name.toLowerCase() === incCat.name.toLowerCase()
+    );
+    if (existingIndex >= 0) {
+      const existing = mergedCategories[existingIndex];
+      mergedCategories[existingIndex] = {
+        ...existing,
+        ...incCat,
+      };
+      updatedCat++;
+    } else {
+      mergedCategories.push(incCat);
+      addedCat++;
+    }
+  });
+
+  // Merge Passwords
+  incomingPasswords.forEach((incPass) => {
+    const existingIndex = mergedPasswords.findIndex((p) => p.id === incPass.id);
+    if (existingIndex >= 0) {
+      const localPass = mergedPasswords[existingIndex];
+      const localTime = localPass.updatedAt || localPass.createdAt || 0;
+      const incomingTime = incPass.updatedAt || incPass.createdAt || 0;
+
+      if (incomingTime > localTime) {
+        mergedPasswords[existingIndex] = incPass;
+        updatedPass++;
+      }
+    } else {
+      mergedPasswords.push(incPass);
+      addedPass++;
+    }
+  });
+
+  return {
+    passwords: mergedPasswords,
+    categories: mergedCategories,
+    summary: { addedPass, updatedPass, addedCat, updatedCat },
+  };
+}
 
 export async function compressData(data: any): Promise<string> {
   const jsonStr = JSON.stringify(data);
