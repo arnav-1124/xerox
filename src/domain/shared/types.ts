@@ -34,4 +34,6 @@ export interface VaultSettings {
   trustedDomains: string[];
   lastUnlockedTime?: number;
   lastBackupTime?: number;
+  duckEnabled?: boolean;
+  duckToken?: string;
 }

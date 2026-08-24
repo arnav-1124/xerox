@@ -12,6 +12,7 @@ import {
   FileJson,
   Fingerprint,
   Trash2,
+  Mail,
 } from 'lucide-react';
 import { VaultSettings } from '../types';
 import { defaultVaultService } from '../application/vault/VaultService';
@@ -295,6 +296,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           Open Extension Installation & Security Guide
         </button>
+      </div>
+
+      {/* DuckDuckGo Email Protection Settings */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 flex items-center justify-center">
+            <Mail className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-card-foreground">DuckDuckGo Email Protection</h3>
+            <p className="text-[11px] text-muted-foreground">Generate private @duck.com aliases for registration</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-2 text-xs">
+          <label className="flex items-center gap-2.5 text-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={settings.duckEnabled || false}
+              onChange={(e) => {
+                onUpdateSettings({
+                  ...settings,
+                  duckEnabled: e.target.checked,
+                });
+              }}
+              className="rounded border-border text-primary focus:ring-ring"
+            />
+            <span>Enable DuckDuckGo Email Generation</span>
+          </label>
+
+          {settings.duckEnabled && (
+            <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+              <div>
+                <label className="block text-[11px] text-foreground font-medium mb-1">
+                  DuckDuckGo Personal Bearer Token
+                </label>
+                <input
+                  type="password"
+                  value={settings.duckToken || ''}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      ...settings,
+                      duckToken: e.target.value,
+                    });
+                  }}
+                  placeholder="Paste your Bearer Token here..."
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground font-mono outline-none focus:border-ring"
+                />
+              </div>
+
+              <div className="p-3 bg-muted border border-border rounded-xl text-[10px] text-muted-foreground space-y-1.5 leading-normal">
+                <span className="font-semibold text-foreground block">How to find your Bearer Token:</span>
+                <ol className="list-decimal pl-4 space-y-1">
+                  <li>Log in to your account at <a href="https://duckduckgo.com/email" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">duckduckgo.com/email</a> in Chrome/Firefox.</li>
+                  <li>Open Developer Tools (F12) and switch to the <strong>Network</strong> tab.</li>
+                  <li>Click <strong>Generate Private Duck Address</strong> in their settings interface.</li>
+                  <li>Locate the request to <code>addresses</code> in the list.</li>
+                  <li>Find the <code>Authorization</code> request header and copy the token value following <code>Bearer </code>.</li>
+                </ol>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Danger Zone */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, KeyRound, Wand2, Eye, EyeOff, ShieldAlert, CreditCard, FileText, Lock } from 'lucide-react';
-import { PasswordEntry, Category } from '../types';
+import { PasswordEntry, Category, VaultSettings } from '../types';
 import { getCategoryPath } from '../lib/categoryHelper';
 import { PasswordGeneratorModal } from './PasswordGeneratorModal';
 
@@ -11,6 +11,7 @@ interface PasswordModalProps {
   initialEntry?: PasswordEntry | null;
   categories: Category[];
   defaultCategoryId?: string;
+  settings: VaultSettings;
 }
 
 export const PasswordModal: React.FC<PasswordModalProps> = ({
@@ -20,6 +21,7 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
   initialEntry,
   categories,
   defaultCategoryId,
+  settings,
 }) => {
   const [entryType, setEntryType] = useState<'login' | 'card' | 'note'>('login');
   const [websiteName, setWebsiteName] = useState('');
@@ -428,6 +430,10 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
           setPassword(genPwd);
           setShowPassword(true);
         }}
+        onSelectEmail={(genEmail) => {
+          setUsername(genEmail);
+        }}
+        settings={settings}
       />
     </>
   );

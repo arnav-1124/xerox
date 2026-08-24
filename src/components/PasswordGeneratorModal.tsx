@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, Copy, ShieldCheck, Check } from 'lucide-react';
+import { X, RefreshCw, Copy, ShieldCheck, Check, Loader2 } from 'lucide-react';
 import { generateSecurePassword, calculatePasswordStrength, PasswordGeneratorOptions } from '../lib/crypto';
+import { VaultSettings } from '../types';
 
 interface PasswordGeneratorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectPassword?: (password: string) => void;
+  onSelectEmail?: (email: string) => void;
+  settings?: VaultSettings;
 }
 
 export const PasswordGeneratorModal: React.FC<PasswordGeneratorModalProps> = ({
   isOpen,
   onClose,
   onSelectPassword,
+  onSelectEmail,
+  settings,
 }) => {
   const [options, setOptions] = useState<PasswordGeneratorOptions>({
     length: 16,
@@ -25,17 +30,78 @@ export const PasswordGeneratorModal: React.FC<PasswordGeneratorModalProps> = ({
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // DuckDuckGo Alias Generator States
+  const [generateEmail, setGenerateEmail] = useState(false);
+  const [generatedEmail, setGeneratedEmail] = useState('');
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const fetchDuckEmail = async () => {
+    if (!settings?.duckEnabled || !settings?.duckToken) return;
+    setIsGeneratingEmail(true);
+    setEmailError('');
+    try {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const apiUrl = isLocal 
+        ? 'https://xerox-orcin.vercel.app/api/duck-alias' 
+        : '/api/duck-alias';
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${settings.duckToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to generate alias');
+      }
+
+      const data = await response.json();
+      if (data && data.address) {
+        setGeneratedEmail(`${data.address}@duck.com`);
+      } else {
+        throw new Error('Invalid response structure');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setEmailError(err.message || 'Error generating Duck email');
+    } finally {
+      setIsGeneratingEmail(false);
+    }
+  };
+
   const generate = () => {
     const pwd = generateSecurePassword(options);
     setPassword(pwd);
     setCopied(false);
   };
 
+  const handleRegenerate = () => {
+    generate();
+    if (generateEmail) {
+      fetchDuckEmail();
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      generate();
+      // Reset email state when generator modal is opened
+      setGeneratedEmail('');
+      setGenerateEmail(false);
+      setEmailError('');
+    }
+  }, [isOpen]);
+
+  // Regenerate password when options (checkboxes/slider) change, but do NOT fetch email
   useEffect(() => {
     if (isOpen) {
       generate();
     }
-  }, [isOpen, options]);
+  }, [options]);
 
   if (!isOpen) return null;
 
@@ -50,6 +116,9 @@ export const PasswordGeneratorModal: React.FC<PasswordGeneratorModalProps> = ({
   const handleApply = () => {
     if (onSelectPassword) {
       onSelectPassword(password);
+    }
+    if (generateEmail && generatedEmail && onSelectEmail) {
+      onSelectEmail(generatedEmail);
     }
     onClose();
   };
@@ -82,7 +151,7 @@ export const PasswordGeneratorModal: React.FC<PasswordGeneratorModalProps> = ({
             </span>
             <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={generate}
+                onClick={handleRegenerate}
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                 title="Regenerate"
               >
@@ -111,6 +180,54 @@ export const PasswordGeneratorModal: React.FC<PasswordGeneratorModalProps> = ({
               />
             </div>
           </div>
+
+          {/* DuckDuckGo Email Protection Alias Generator */}
+          {settings?.duckEnabled && settings?.duckToken && (
+            <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground select-none">
+                <input
+                  type="checkbox"
+                  checked={generateEmail}
+                  onChange={(e) => {
+                    setGenerateEmail(e.target.checked);
+                    if (e.target.checked && !generatedEmail) {
+                      fetchDuckEmail();
+                    }
+                  }}
+                  className="rounded border-border text-blue-600 focus:ring-0 text-xs"
+                />
+                <span>Generate Private Duck Email Address</span>
+              </label>
+
+              {generateEmail && (
+                <div className="flex items-center justify-between gap-2 bg-muted border border-border rounded-lg p-2 font-mono text-xs text-foreground min-h-[36px]">
+                  {isGeneratingEmail ? (
+                    <span className="text-muted-foreground flex items-center gap-1.5 animate-pulse">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                      Generating @duck.com alias...
+                    </span>
+                  ) : emailError ? (
+                    <span className="text-destructive font-sans">{emailError}</span>
+                  ) : generatedEmail ? (
+                    <>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400 select-all">
+                        {generatedEmail}
+                      </span>
+                      <button
+                        onClick={fetchDuckEmail}
+                        className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        title="Regenerate Duck Email"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground italic">No email generated.</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Controls */}

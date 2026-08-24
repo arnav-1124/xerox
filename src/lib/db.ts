@@ -217,6 +217,8 @@ const DEFAULT_SETTINGS: VaultSettings = {
   autoLockMinutes: 15,
   requireConfirmationForAutofill: true,
   trustedDomains: ['github.com', 'google.com', 'notion.so'],
+  duckEnabled: false,
+  duckToken: '',
 };
 
 export async function getSettings(): Promise<VaultSettings> {

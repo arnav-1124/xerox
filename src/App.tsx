@@ -1458,6 +1458,7 @@ export default function App() {
         initialEntry={editingPassword}
         categories={categories}
         defaultCategoryId={selectedCategory || undefined}
+        settings={settings}
       />
 
       <CategoryManagerModal
