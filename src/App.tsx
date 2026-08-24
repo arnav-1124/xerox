@@ -1407,6 +1407,7 @@ export default function App() {
                 setIsPasswordModalOpen(true);
               }}
               addToast={addToast}
+              onNavigate={handleSelectView}
             />
           )}
 

@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
-import { PasswordEntry } from '../types';
-import { Mail, Search, Copy, Check, ExternalLink, Lock, Unlock, HelpCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { PasswordEntry, ViewMode } from '../types';
+import {
+  Mail,
+  Search,
+  Copy,
+  Check,
+  ExternalLink,
+  Lock,
+  Unlock,
+  Eye,
+  EyeOff,
+  Shield,
+  ArrowRight,
+  ExternalLink as LinkIcon,
+  Settings,
+  KeyRound,
+  Inbox,
+  HelpCircle,
+} from 'lucide-react';
 
 interface MaskedEmailsViewProps {
   passwords: PasswordEntry[];
@@ -8,6 +25,7 @@ interface MaskedEmailsViewProps {
   onUnlockClick: () => void;
   onEditPassword: (entry: PasswordEntry) => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  onNavigate: (view: ViewMode) => void;
 }
 
 export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
@@ -16,6 +34,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
   onUnlockClick,
   onEditPassword,
   addToast,
+  onNavigate,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -98,34 +117,130 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
             View and manage your generated DuckDuckGo private email aliases (`@duck.com`) to protect your inbox from spam.
           </p>
         </div>
-        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl text-amber-600 dark:text-amber-400">
-          <AlertCircle className="w-4 h-4" />
+        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl text-amber-600 dark:text-amber-400 self-start md:self-auto">
+          <Shield className="w-4 h-4" />
           <span className="text-xs font-mono font-medium">DuckDuckGo Protection Active</span>
         </div>
       </div>
 
-      {/* Main List */}
+      {/* Main List & Explainer */}
       {maskedEmails.length === 0 ? (
-        <div className="bg-card border border-border rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto space-y-5">
-          <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto text-xl">
-            📬
+        <div className="space-y-8 max-w-4xl mx-auto">
+          {/* Explanation Banner */}
+          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center text-3xl shrink-0">
+              🛡️
+            </div>
+            <div className="space-y-2 text-center md:text-left flex-1">
+              <h3 className="text-base font-bold text-foreground">What is a Masked Email Address?</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                A masked email is a random address (like <code className="px-1.5 py-0.5 rounded bg-muted font-mono font-semibold text-amber-600 dark:text-amber-400">netflix.1a2b3c@duck.com</code>) that forwards all mail directly to your real personal inbox. If a site leaks your email or starts sending spam, you can deactivate that single alias without changing your real email address!
+              </p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-base font-bold text-foreground">No Masked Emails Found</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              When creating password entries, click the <strong>Generate</strong> button and select <strong>Generate Private Duck Email Address</strong> to keep your real email hidden.
-            </p>
+
+          {/* Visual Concept Flow */}
+          <div className="bg-card border border-border rounded-3xl p-6 text-center space-y-4">
+            <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">How the Data Flow Works</span>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 max-w-lg mx-auto py-2">
+              <div className="px-4 py-2.5 rounded-xl bg-muted border border-border font-medium text-xs text-foreground flex items-center gap-2">
+                📢 Public Websites & Spam
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
+              <div className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center gap-2 animate-pulse">
+                📨 @duck.com Private Alias
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
+              <div className="px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center gap-2">
+                🔒 Your Real Email (Hidden)
+              </div>
+            </div>
           </div>
-          <div className="p-4 bg-muted border border-border rounded-xl text-left space-y-2">
-            <span className="text-[11px] font-bold text-foreground block flex items-center gap-1">
-              <HelpCircle className="w-3.5 h-3.5 text-amber-500" /> Quick Getting Started:
-            </span>
-            <ol className="list-decimal pl-4 text-[10px] text-muted-foreground space-y-1">
-              <li>Enable the integration and add your DuckToken in <strong>Settings</strong>.</li>
-              <li>Add a new login entry in <strong>Password Vault</strong>.</li>
-              <li>Click the magic wand icon next to the password input field.</li>
-              <li>Check "Generate Private Duck Email Address" to fill in the username instantly!</li>
-            </ol>
+
+          {/* Interactive Step-by-Step Setup Guide */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-bold text-foreground text-center">4-Step Onboarding Guide</h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Step 1 */}
+              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-6 h-6 rounded-full bg-blue-500 text-white font-bold text-xs flex items-center justify-center">1</span>
+                    <h5 className="text-xs font-bold text-foreground">Get a Free @duck.com Account</h5>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    DuckDuckGo provides free email shielding. Sign up for a personal account which will be used to forward all masked emails.
+                  </p>
+                </div>
+                <a
+                  href="https://duckduckgo.com/email"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-center text-[10px] flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <span>Sign Up at DuckDuckGo Email</span>
+                  <LinkIcon className="w-3.5 h-3.5" />
+                </a>
+              </div>
+
+              {/* Step 2 */}
+              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-6 h-6 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center">2</span>
+                    <h5 className="text-xs font-bold text-foreground">Paste Token in Xerox Settings</h5>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Go to Xerox Settings, enable the DuckDuckGo option, and paste your Bearer Token (follow the network inspection guide).
+                  </p>
+                </div>
+                <button
+                  onClick={() => onNavigate('settings')}
+                  className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-center text-[10px] flex items-center justify-center gap-1.5 border border-amber-500/20 cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Open Settings & Storage</span>
+                </button>
+              </div>
+
+              {/* Step 3 */}
+              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-6 h-6 rounded-full bg-purple-500 text-white font-bold text-xs flex items-center justify-center">3</span>
+                    <h5 className="text-xs font-bold text-foreground">Generate in Password Vault</h5>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Add a new entry inside your Password Vault. Click the **magic wand generator** and check **"Generate Private Duck Email Address"**.
+                  </p>
+                </div>
+                <button
+                  onClick={() => onNavigate('passwords')}
+                  className="w-full py-2 px-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 font-bold text-center text-[10px] flex items-center justify-center gap-1.5 border border-purple-500/20 cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Open Password Vault</span>
+                </button>
+              </div>
+
+              {/* Step 4 */}
+              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-bold text-xs flex items-center justify-center">4</span>
+                    <h5 className="text-xs font-bold text-foreground">Track All Aliases Right Here!</h5>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Once saved, all logins using `@duck.com` usernames will be cataloged on this dashboard automatically for search and copy access.
+                  </p>
+                </div>
+                <div className="w-full py-2 px-3 rounded-xl bg-muted border border-border text-muted-foreground font-semibold text-center text-[10px] flex items-center justify-center gap-1.5">
+                  <Inbox className="w-3.5 h-3.5" />
+                  <span>Dashboard Active & Ready</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
@@ -149,7 +264,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
               const isPassVisible = !!visiblePasswords[entry.id];
 
               return (
-                <div key={entry.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-between gap-4 shadow-2xs group hover:border-muted-foreground/30 transition-all">
+                <div key={entry.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-between gap-4 shadow-2xs group hover:border-muted-foreground/30 transition-all animate-in fade-in duration-200">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-xl border border-border bg-muted flex items-center justify-center overflow-hidden shrink-0">
