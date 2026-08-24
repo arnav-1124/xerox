@@ -13,6 +13,7 @@ import {
   Fingerprint,
   Trash2,
   Mail,
+  UploadCloud,
 } from 'lucide-react';
 import { VaultSettings } from '../types';
 import { defaultVaultService } from '../application/vault/VaultService';
@@ -29,6 +30,7 @@ interface SettingsViewProps {
   isUnlocked: boolean;
   onOpenExtensionGuide: () => void;
   onOpenSyncModal?: () => void;
+  onOpenIpfsBackup?: () => void;
   addToast?: (text: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -42,6 +44,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   isUnlocked,
   onOpenExtensionGuide,
   onOpenSyncModal,
+  onOpenIpfsBackup,
   addToast,
 }) => {
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -286,6 +289,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Your vault is stored locally on this device. No account or central cloud server is required.
         </p>
+      </div>
+
+      {/* Decentralized Backups (IPFS) */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-500 flex items-center justify-center">
+            <UploadCloud className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-card-foreground">Decentralized Web3 Backups</h3>
+            <p className="text-[11px] text-muted-foreground">Store client-side encrypted backups on IPFS</p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          Upload a secure copy of your vault to the decentralized web (IPFS). Recover your data on any device using your unique CID and Master Password.
+        </p>
+
+        {onOpenIpfsBackup && (
+          <button
+            onClick={onOpenIpfsBackup}
+            className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-white bg-orange-500 hover:bg-orange-400 transition shadow-sm cursor-pointer"
+          >
+            Manage Decentralized Backups
+          </button>
+        )}
       </div>
 
       {/* Extension & Data Management */}

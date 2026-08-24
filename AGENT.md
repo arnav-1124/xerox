@@ -4,6 +4,13 @@ Welcome, AI Developer / Agent! This file is the single source of truth and compr
 
 No matter when you are reading this file, or what AI model you are, you should read this document first to understand the codebase, the architectural constraints, the security configurations, the project vision, and the next steps.
 
+## ⚠️ CRITICAL AGENT DIRECTIVES & GUARDRAILS (STRICT RULES)
+
+Every AI agent working on this codebase **MUST** follow these strict rules:
+1. **Incremental MD Updates**: Never forget to update all crucial markdown files (`AGENT.md`, `walkthrough.md`, `task.md`, `ARCHITECTURE.md`, `DEV_Guide.md`) on an incremental basis whenever changes are introduced.
+2. **Read Latest Sources**: For any implementation of technologies or dependencies, **do NOT rely on your pre-training knowledge**. Always read the latest official documentation or fetch external source files to verify current API versions and compatibility (e.g., React, WebRTC, Tauri, Pako, JSZip, etc.).
+3. **Keep it Simple & Smooth**: The interface and technical flows must be completely clear, self-explanatory, and simple to follow for non-technical users. Avoid abstract lists; provide visual onboarding steps, flows, interactive routes, and explanations.
+
 ---
 
 ## 🌟 Vision, Mission, & Branding
@@ -39,6 +46,7 @@ Xerox is fully featured and production-ready:
 * **Command Palette**: Pressing `Ctrl + K` or `Cmd + K` opens a quick-search utility overlay across all passwords and bookmarks.
 * **DuckDuckGo Email Protection**: Programmatic generation of private `@duck.com` email aliases via Vercel serverless proxy endpoint `/api/duck-alias` (to bypass CORS and bot detection).
 * **WebRTC Local Device Sync**: A local-first peer-to-peer sync using browser `RTCPeerConnection` APIs, supporting Vanilla ICE for single QR Code scans/manual copy-paste, and room pin connections over public WebSocket signaling servers.
+* **Decentralized IPFS Backup**: Client-side encrypted backup pinning to the decentralized web (IPFS) via a secure serverless Vercel function proxy `/api/ipfs-backup` and resilient HTTP gateway fallback polling.
 
 ---
 
@@ -88,5 +96,5 @@ For any future developers (human or AI), here are the recommended next steps to 
 1. **WebRTC Local Peer-to-Peer Sync (DONE)**: Direct local network sync between your computer's browser and phone's browser using WebRTC, with QR Code camera scan and broker room PIN options.
 2. **Browser Native Autofill Integration (Credential Management API)**: Integrate the Web Credential Management API to allow browsers to save and suggest Xerox passwords natively.
 3. **Disposable/Masked Email Aliases (DONE)**: Fully integrated DuckDuckGo Email Protection for random alias generation inside the password generator.
-4. **IndexedDB Backup Shard System**: Encrypt backup files locally and automatically upload them to Web3/decentralized storage (like IPFS, Arweave, or Filecoin) using user-provided keys.
+4. **IndexedDB Backup Shard System (DONE)**: Encrypted backup files locally and automatically uploaded to Web3/decentralized storage (IPFS) using client-side AES-256-GCM.
 5. **PDF/Image File Vault Compression**: Automatically compress PDFs, images, and files in the client before encryption and storage in IndexedDB to maximize browser storage quotas.

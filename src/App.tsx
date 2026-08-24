@@ -69,6 +69,7 @@ import { FileVaultView } from './components/FileVaultView';
 import { TotpAuthenticatorView } from './components/TotpAuthenticatorView';
 import { MaskedEmailsView } from './components/MaskedEmailsView';
 import { PeerSyncModal } from './components/PeerSyncModal';
+import { DecentralizedBackupModal } from './components/DecentralizedBackupModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { BackupPasswordModal } from './components/BackupPasswordModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -188,6 +189,7 @@ export default function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isExtensionGuideOpen, setIsExtensionGuideOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isIpfsBackupOpen, setIsIpfsBackupOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Secure Zero-Knowledge Share States
@@ -699,6 +701,29 @@ export default function App() {
     } catch (err: any) {
       console.error('Sync complete error', err);
       addToast('Error saving synchronized vault data.', 'error');
+    }
+  };
+
+  const handleIpfsRestoreComplete = async (decrypted: any) => {
+    try {
+      if (decrypted.categories) {
+        setCategories(decrypted.categories);
+        await saveAllCategories(decrypted.categories);
+      }
+      if (decrypted.bookmarks) {
+        setBookmarks(decrypted.bookmarks);
+        await saveAllBookmarks(decrypted.bookmarks);
+      }
+      if (decrypted.passwords) {
+        await saveAndEncryptPasswords(decrypted.passwords);
+      }
+      if (decrypted.settings) {
+        setSettingsState(decrypted.settings);
+        await saveSettings(decrypted.settings);
+      }
+    } catch (err: any) {
+      console.error('IPFS restore save error', err);
+      addToast('Error saving restored vault data.', 'error');
     }
   };
 
@@ -1422,6 +1447,7 @@ export default function App() {
               isUnlocked={isUnlocked}
               onOpenExtensionGuide={() => setIsExtensionGuideOpen(true)}
               onOpenSyncModal={() => setIsSyncModalOpen(true)}
+              onOpenIpfsBackup={() => setIsIpfsBackupOpen(true)}
             />
           )}
 
@@ -1550,6 +1576,20 @@ export default function App() {
         localPasswords={decryptedPasswords}
         localCategories={categories}
         onSyncComplete={handleSyncComplete}
+        addToast={addToast}
+      />
+
+      <DecentralizedBackupModal
+        isOpen={isIpfsBackupOpen}
+        onClose={() => setIsIpfsBackupOpen(false)}
+        passwords={decryptedPasswords}
+        bookmarks={bookmarks}
+        categories={categories}
+        settings={settings}
+        derivedKey={derivedKey}
+        isUnlocked={isUnlocked}
+        onUnlockClick={() => setIsMasterPasswordModalOpen(true)}
+        onRestoreComplete={handleIpfsRestoreComplete}
         addToast={addToast}
       />
 

@@ -82,7 +82,10 @@ npx tsx src/tests/webrtc.test.ts
 # 4. DuckDuckGo API Endpoint Suite
 npx tsx src/tests/duckAlias.test.ts
 
-# 5. Real-World Extension Suite
+# 5. IPFS Pinning & Encrypted Backups Suite
+npx tsx src/tests/ipfsBackup.test.ts
+
+# 6. Real-World Extension Suite
 node real_world_validation.cjs
 ```
 

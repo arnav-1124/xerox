@@ -60,10 +60,13 @@ npx tsx src/tests/webrtc.test.ts
 # 7. Run DuckDuckGo API Endpoint Suite
 npx tsx src/tests/duckAlias.test.ts
 
-# 8. Execute 31-point real-world extension validation suite
+# 8. Run IPFS Pinning & Encrypted Backups Suite
+npx tsx src/tests/ipfsBackup.test.ts
+
+# 9. Execute 31-point real-world extension validation suite
 npm run test:extension
 
-# 9. Build production web bundle
+# 10. Build production web bundle
 npm run build
 ```
 
