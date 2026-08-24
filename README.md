@@ -1,6 +1,6 @@
 # Xerox - Secure Local-First Password Manager & Bookmarks 🔐
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![Privacy: Zero-Knowledge](https://img.shields.io/badge/Privacy-100%25%20Local-emerald)](https://github.com/)
 
@@ -58,6 +58,9 @@ For detailed end-to-end technical documentation covering the cryptographic speci
 
 ---
 
-## 📜 License
+## 📜 License & Trademark Guidelines
 
-Distributed under the [MIT License](LICENSE).
+This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) - see the [LICENSE](LICENSE) file for details.
+
+### 🛡️ Trademark Policy
+"Xerox", "Xerox Vault", and associated logos are trademarks of the Xerox project. While the source code is open and customizable, you **cannot** use the name "Xerox", its logos, or designs in a commercial or rebranded deployment without prior written permission. Any modified or rebranded fork must be clearly named differently and cannot claim endorsement by the original project.
