@@ -10,6 +10,8 @@ Every AI agent working on this codebase **MUST** follow these strict rules:
 1. **Incremental MD Updates**: Never forget to update all crucial markdown files (`AGENT.md`, `walkthrough.md`, `task.md`, `ARCHITECTURE.md`, `DEV_Guide.md`) on an incremental basis whenever changes are introduced.
 2. **Read Latest Sources**: For any implementation of technologies or dependencies, **do NOT rely on your pre-training knowledge**. Always read the latest official documentation or fetch external source files to verify current API versions and compatibility (e.g., React, WebRTC, Tauri, Pako, JSZip, etc.).
 3. **Keep it Simple & Smooth**: The interface and technical flows must be completely clear, self-explanatory, and simple to follow for non-technical users. Avoid abstract lists; provide visual onboarding steps, flows, interactive routes, and explanations.
+4. **Strict Border-Radius Limit (Max 4px)**: All components, modals, cards, inputs, and buttons (except the public navbar on marketing landing pages) must strictly enforce a maximum border-radius of `4px` (`rounded` or `rounded-[4px]`). Do not use `rounded-md`, `rounded-lg`, `rounded-xl`, `rounded-2xl`, or `rounded-3xl` for layout styling.
+5. **Theme Color Policy**: Do not use bright blue or other generic/out-of-theme color combinations. Enforce Xerox's signature monochrome dark theme, using warm amber (`amber-500`/`orange-500`) for safety alerts or key security indicators, and emerald (`emerald-500`/`emerald-600`) for successes and active counts.
 
 ---
 

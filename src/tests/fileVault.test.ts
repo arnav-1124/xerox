@@ -1,4 +1,4 @@
-import { compressAndEncryptFile, decryptAndDecompressFile } from '../lib/fileCrypto';
+import { compressAndEncryptFile, decryptAndDecompressFile, decryptWithoutDecompress } from '../lib/fileCrypto';
 import { deriveKeyBundle } from '../lib/crypto';
 
 async function runFileVaultTests() {
@@ -61,6 +61,17 @@ async function runFileVaultTests() {
 
     const restoredText = await decryptedBlob.text();
     assert(restoredText === testString, 'Decompressed text content matches original test string exactly');
+
+    // 4b. Verify decryption without decompression (downloads compressed version)
+    console.log('\n[Testing Decryption Without Decompression]');
+    const rawCompressedBlob = await decryptWithoutDecompress(
+      result.encryptedBlob,
+      result.iv,
+      result.salt,
+      keyBundle
+    );
+    assert(rawCompressedBlob !== null, 'Decrypted raw compressed Blob is not null');
+    assert(rawCompressedBlob.size === result.compressedSize, `Decrypted compressed Blob size matches declared compressed size (${rawCompressedBlob.size} bytes)`);
 
     // 5. Test CryptoJS Fallback Mode explicitly
     console.log('\n[Testing CryptoJS Fallback Encryption]');

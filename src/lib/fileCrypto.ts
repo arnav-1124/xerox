@@ -164,3 +164,83 @@ export async function decryptAndDecompressFile(
 
   throw new Error('Failed to decrypt and restore file: invalid key or unsupported format.');
 }
+
+/**
+ * Decrypts a file block but returns the compressed GZIP Blob directly (no decompression).
+ */
+export async function decryptWithoutDecompress(
+  data: Blob | string,
+  ivBase64: string,
+  saltBase64: string,
+  keyBundle: DerivedKeyBundle
+): Promise<Blob> {
+  let cipherBuffer: ArrayBuffer | null = null;
+  let cipherTextStr = '';
+
+  if (data instanceof Blob) {
+    if (data.type === 'text/plain') {
+      cipherTextStr = await data.text();
+    } else {
+      cipherBuffer = await data.arrayBuffer();
+    }
+  } else {
+    cipherTextStr = data;
+  }
+
+  const iv = new Uint8Array(base64ToArrayBuffer(ivBase64));
+
+  // Check if payload is in CryptoJS format
+  if (cipherTextStr && cipherTextStr.startsWith('cjs:')) {
+    if (!keyBundle.fallbackKeyHex) {
+      throw new Error('No cryptographic key available for decryption.');
+    }
+
+    const rawText = cipherTextStr.slice(4);
+    const keyObj = CryptoJS.enc.Hex.parse(keyBundle.fallbackKeyHex);
+    const ivHex = CryptoJS.enc.Hex.parse(
+      Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join('')
+    );
+
+    const decrypted = CryptoJS.AES.decrypt(rawText, keyObj, {
+      iv: ivHex,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+
+    const base64Str = decrypted.toString(CryptoJS.enc.Utf8);
+    if (!base64Str) {
+      throw new Error('CryptoJS file decryption failed: invalid key or corrupted data.');
+    }
+
+    const compressedBuffer = base64ToArrayBuffer(base64Str);
+    return new Blob([compressedBuffer], { type: 'application/gzip' });
+  }
+
+  // WebCrypto decryption
+  if (keyBundle.cryptoKey && typeof crypto !== 'undefined' && crypto.subtle && cipherBuffer) {
+    try {
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        keyBundle.cryptoKey,
+        cipherBuffer
+      );
+
+      return new Blob([decryptedBuffer], { type: 'application/gzip' });
+    } catch (e) {
+      console.warn('WebCrypto file decryption failed, attempting CryptoJS parsing:', e);
+    }
+  }
+
+  // Fallback in case a binary blob contains CryptoJS text
+  if (cipherBuffer) {
+    const textDecoder = new TextDecoder();
+    try {
+      const text = textDecoder.decode(cipherBuffer);
+      if (text.startsWith('cjs:')) {
+        return await decryptWithoutDecompress(text, ivBase64, saltBase64, keyBundle);
+      }
+    } catch {}
+  }
+
+  throw new Error('Failed to decrypt: invalid key or unsupported format.');
+}

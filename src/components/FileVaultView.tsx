@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { EncryptedFile } from '../types';
 import { getEncryptedFiles, saveEncryptedFile, deleteEncryptedFileDB } from '../lib/db';
-import { compressAndEncryptFile, decryptAndDecompressFile } from '../lib/fileCrypto';
+import { compressAndEncryptFile, decryptAndDecompressFile, decryptWithoutDecompress } from '../lib/fileCrypto';
 import {
   Shield,
   Upload,
@@ -114,7 +114,7 @@ export function FileVaultView({ addToast, derivedKey, showConfirm, onUnlockClick
     );
   };
 
-  const handleDownload = async (file: EncryptedFile) => {
+  const handleDownload = async (file: EncryptedFile, forceCompressed = false) => {
     if (!derivedKey) {
       addToast('Please unlock your vault first to decrypt files.', 'error');
       if (onUnlockClick) onUnlockClick();
@@ -123,10 +123,16 @@ export function FileVaultView({ addToast, derivedKey, showConfirm, onUnlockClick
 
     try {
       let blob: Blob;
+      let filename = file.name;
 
       // Check if file is encrypted (has metadata headers)
       if (file.iv && file.salt) {
-        blob = await decryptAndDecompressFile(file.data, file.iv, file.salt, derivedKey);
+        if (forceCompressed) {
+          blob = await decryptWithoutDecompress(file.data, file.iv, file.salt, derivedKey);
+          filename = file.name + '.gz';
+        } else {
+          blob = await decryptAndDecompressFile(file.data, file.iv, file.salt, derivedKey);
+        }
       } else {
         // Fallback for legacy (unencrypted) files
         if (file.data instanceof Blob) {
@@ -148,12 +154,12 @@ export function FileVaultView({ addToast, derivedKey, showConfirm, onUnlockClick
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.name;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      addToast(`Decrypted and downloaded ${file.name}`, 'success');
+      addToast(`Decrypted and downloaded ${filename}`, 'success');
     } catch (err: any) {
       console.error(err);
       addToast(`Failed to decrypt and download file: ${err.message || err}`, 'error');
@@ -314,20 +320,34 @@ export function FileVaultView({ addToast, derivedKey, showConfirm, onUnlockClick
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mt-5 pt-4 border-t border-border">
-                    <button
-                      onClick={() => handleDownload(file)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-muted hover:bg-accent text-foreground border border-border rounded text-[11px] font-bold transition cursor-pointer"
-                    >
-                      <HardDriveDownload className="w-3.5 h-3.5" />
-                      Decrypt & Download
-                    </button>
+                  <div className="flex flex-col gap-2 mt-5 pt-4 border-t border-border">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDownload(file, false)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-muted hover:bg-accent text-foreground border border-border rounded text-[10px] font-bold transition cursor-pointer"
+                        title="Decrypt and restore uncompressed original file"
+                      >
+                        <HardDriveDownload className="w-3.5 h-3.5" />
+                        Original
+                      </button>
+                      {file.iv && (
+                        <button
+                          onClick={() => handleDownload(file, true)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold transition cursor-pointer"
+                          title="Download the compressed GZIP archive directly"
+                        >
+                          <TrendingDown className="w-3.5 h-3.5" />
+                          Compressed (.gz)
+                        </button>
+                      )}
+                    </div>
                     <button
                       onClick={() => handleDelete(file.id, file.name)}
-                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition cursor-pointer"
+                      className="w-full flex items-center justify-center gap-1.5 py-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition cursor-pointer text-[10px]"
                       title="Delete file"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete File
                     </button>
                   </div>
                 </div>
