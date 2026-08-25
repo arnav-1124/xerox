@@ -17,7 +17,7 @@ function isSubtleCryptoAvailable(): boolean {
   );
 }
 
-function getRandomBytes(length: number): Uint8Array {
+export function getRandomBytes(length: number): Uint8Array {
   const bytes = new Uint8Array(length);
   const cryptoObj = typeof globalThis !== 'undefined' && globalThis.crypto ? globalThis.crypto : (typeof window !== 'undefined' ? window.crypto : null);
   if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
@@ -32,7 +32,7 @@ function getRandomBytes(length: number): Uint8Array {
 
 
 // Convert ArrayBuffer to Base64
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
@@ -42,7 +42,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 // Convert Base64 to ArrayBuffer
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {

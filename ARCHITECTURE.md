@@ -85,7 +85,10 @@ npx tsx src/tests/duckAlias.test.ts
 # 5. IPFS Pinning & Encrypted Backups Suite
 npx tsx src/tests/ipfsBackup.test.ts
 
-# 6. Real-World Extension Suite
+# 6. File Compression & Encryption Suite
+npx tsx src/tests/fileVault.test.ts
+
+# 7. Real-World Extension Suite
 node real_world_validation.cjs
 ```
 

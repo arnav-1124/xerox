@@ -252,11 +252,11 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-popover border border-border rounded-3xl shadow-2xl text-popover-foreground overflow-hidden flex flex-col relative">
+      <div className="w-full max-w-md bg-popover border border-border rounded shadow-2xl text-popover-foreground overflow-hidden flex flex-col relative">
         {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded bg-orange-500/10 border border-orange-500/20 text-orange-500 flex items-center justify-center">
               <UploadCloud className="w-4 h-4" />
             </div>
             <div>
@@ -266,7 +266,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -299,7 +299,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
         {/* Content Body */}
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           {errorMessage && (
-            <div className="p-3.5 bg-destructive/10 border border-destructive/20 rounded-2xl flex items-start gap-2.5">
+            <div className="p-3.5 bg-destructive/10 border border-destructive/20 rounded flex items-start gap-2.5">
               <AlertTriangle className="w-4.5 h-4.5 text-destructive shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <span className="text-[11px] font-bold text-destructive block">Operation Failed</span>
@@ -310,7 +310,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
 
           {!isUnlocked ? (
             <div className="text-center py-6 space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 rounded bg-muted flex items-center justify-center mx-auto">
                 <Lock className="w-6 h-6 text-muted-foreground" />
               </div>
               <div className="space-y-1">
@@ -321,7 +321,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
               </div>
               <button
                 onClick={onUnlockClick}
-                className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-1.5 mx-auto"
+                className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded hover:opacity-90 transition-opacity flex items-center gap-1.5 mx-auto"
               >
                 <Unlock className="w-3.5 h-3.5" />
                 <span>Unlock Vault</span>
@@ -344,7 +344,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
                 <div className="space-y-4">
                   {!cidResult ? (
                     <div className="space-y-4 text-center">
-                      <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl text-[11px] text-muted-foreground leading-normal text-left space-y-2">
+                      <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded text-[11px] text-muted-foreground leading-normal text-left space-y-2">
                         <span className="font-bold text-foreground block">🛡️ Client-Side Security Assurance:</span>
                         <p>
                           Your backup payload is completely encrypted with your Master Password key **before** leaving your computer. The public IPFS server only stores an unbreakable chunk of scrambled data.
@@ -352,7 +352,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
                       </div>
                       <button
                         onClick={handleCreateBackup}
-                        className="w-full py-2.5 bg-orange-500 hover:bg-orange-400 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full py-2.5 bg-orange-500 hover:bg-orange-400 text-white font-bold text-xs rounded shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <UploadCloud className="w-4 h-4" />
                         <span>Upload Encrypted Vault to IPFS</span>
@@ -371,7 +371,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
                       </div>
 
                       {/* QR Code display */}
-                      <div className="p-3 bg-white rounded-2xl border border-border mt-2">
+                      <div className="p-3 bg-white rounded border border-border mt-2">
                         <canvas ref={canvasRef} />
                       </div>
 
@@ -382,11 +382,11 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
                             type="text"
                             readOnly
                             value={cidResult}
-                            className="w-full px-3 py-2 bg-muted border border-border rounded-xl font-mono text-[10px] text-muted-foreground outline-none"
+                            className="w-full px-3 py-2 bg-muted border border-border rounded font-mono text-[10px] text-muted-foreground outline-none"
                           />
                           <button
                             onClick={() => handleCopyText(cidResult)}
-                            className="px-3 bg-card border border-border rounded-xl hover:bg-accent text-muted-foreground shrink-0 transition"
+                            className="px-3 bg-card border border-border rounded hover:bg-accent text-muted-foreground shrink-0 transition"
                           >
                             {copiedCid ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                           </button>
@@ -400,7 +400,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
               {/* TAB 2: RESTORE */}
               {activeTab === 'restore' && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-muted border border-border rounded-2xl text-[11px] text-muted-foreground leading-normal space-y-2">
+                  <div className="p-4 bg-muted border border-border rounded text-[11px] text-muted-foreground leading-normal space-y-2">
                     <span className="font-bold text-foreground block">⚠️ Read Before Proceeding:</span>
                     <p>
                       Restoring a backup will merge the entries with your current local vault. Any duplicate credentials will follow the **Last-Write-Wins** timestamp comparison rules.
@@ -415,11 +415,11 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
                         placeholder="e.g. QmXoypizjW3WknFixtdKL9..."
                         value={restoreCid}
                         onChange={(e) => setRestoreCid(e.target.value.trim())}
-                        className="w-full px-3 py-2 bg-card border border-border rounded-xl font-mono text-[10px] text-foreground outline-none focus:border-ring"
+                        className="w-full px-3 py-2 bg-card border border-border rounded font-mono text-[10px] text-foreground outline-none focus:border-ring"
                       />
                       <button
                         onClick={handleRestoreBackup}
-                        className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl shadow-md shrink-0 flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded shadow-md shrink-0 flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <DownloadCloud className="w-3.5 h-3.5" />
                         <span>Restore</span>

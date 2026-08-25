@@ -84,7 +84,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
   if (!isUnlocked) {
     return (
       <div className="max-w-4xl mx-auto py-12 px-4 text-center space-y-6">
-        <div className="w-16 h-16 rounded-2xl bg-secondary border border-border flex items-center justify-center mx-auto shadow-sm">
+        <div className="w-16 h-16 rounded bg-secondary border border-border flex items-center justify-center mx-auto shadow-sm">
           <Lock className="w-8 h-8 text-muted-foreground" />
         </div>
         <div className="space-y-2">
@@ -95,7 +95,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
         </div>
         <button
           onClick={onUnlockClick}
-          className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-sm shadow-sm hover:opacity-90 transition-opacity inline-flex items-center gap-2 rounded-lg cursor-pointer"
+          className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-sm shadow-sm hover:opacity-90 transition-opacity inline-flex items-center gap-2 rounded cursor-pointer"
         >
           <Unlock className="w-4 h-4" />
           Unlock Vault
@@ -117,7 +117,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
             View and manage your generated DuckDuckGo private email aliases (`@duck.com`) to protect your inbox from spam.
           </p>
         </div>
-        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl text-amber-600 dark:text-amber-400 self-start md:self-auto">
+        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded text-amber-600 dark:text-amber-400 self-start md:self-auto">
           <Shield className="w-4 h-4" />
           <span className="text-xs font-mono font-medium">DuckDuckGo Protection Active</span>
         </div>
@@ -127,8 +127,8 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
       {maskedEmails.length === 0 ? (
         <div className="space-y-8 max-w-4xl mx-auto">
           {/* Explanation Banner */}
-          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-sm">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center text-3xl shrink-0">
+          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-sm">
+            <div className="w-16 h-16 rounded bg-amber-500/20 flex items-center justify-center text-3xl shrink-0">
               🛡️
             </div>
             <div className="space-y-2 text-center md:text-left flex-1">
@@ -140,18 +140,18 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
           </div>
 
           {/* Visual Concept Flow */}
-          <div className="bg-card border border-border rounded-3xl p-6 text-center space-y-4">
+          <div className="bg-card border border-border rounded p-6 text-center space-y-4">
             <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">How the Data Flow Works</span>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 max-w-lg mx-auto py-2">
-              <div className="px-4 py-2.5 rounded-xl bg-muted border border-border font-medium text-xs text-foreground flex items-center gap-2">
+              <div className="px-4 py-2.5 rounded bg-muted border border-border font-medium text-xs text-foreground flex items-center gap-2">
                 📢 Public Websites & Spam
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
-              <div className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center gap-2 animate-pulse">
+              <div className="px-4 py-2.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center gap-2 animate-pulse">
                 📨 @duck.com Private Alias
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
-              <div className="px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center gap-2">
+              <div className="px-4 py-2.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center gap-2">
                 🔒 Your Real Email (Hidden)
               </div>
             </div>
@@ -163,10 +163,10 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Step 1 */}
-              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+              <div className="bg-card border border-border rounded p-5 flex flex-col justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-6 h-6 rounded-full bg-blue-500 text-white font-bold text-xs flex items-center justify-center">1</span>
+                    <span className="w-6 h-6 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center">1</span>
                     <h5 className="text-xs font-bold text-foreground">Get a Free @duck.com Account</h5>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -177,7 +177,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                   href="https://duckduckgo.com/email"
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-center text-[10px] flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                  className="w-full py-2 px-3 rounded bg-primary hover:opacity-90 text-white font-bold text-center text-[10px] flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   <span>Sign Up at DuckDuckGo Email</span>
                   <LinkIcon className="w-3.5 h-3.5" />
@@ -185,7 +185,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
               </div>
 
               {/* Step 2 */}
-              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+              <div className="bg-card border border-border rounded p-5 flex flex-col justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2.5">
                     <span className="w-6 h-6 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center">2</span>
@@ -197,7 +197,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                 </div>
                 <button
                   onClick={() => onNavigate('settings')}
-                  className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-center text-[10px] flex items-center justify-center gap-1.5 border border-amber-500/20 cursor-pointer"
+                  className="w-full py-2 px-3 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-center text-[10px] flex items-center justify-center gap-1.5 border border-amber-500/20 cursor-pointer"
                 >
                   <Settings className="w-3.5 h-3.5" />
                   <span>Open Settings & Storage</span>
@@ -205,7 +205,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
               </div>
 
               {/* Step 3 */}
-              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+              <div className="bg-card border border-border rounded p-5 flex flex-col justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2.5">
                     <span className="w-6 h-6 rounded-full bg-purple-500 text-white font-bold text-xs flex items-center justify-center">3</span>
@@ -217,7 +217,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                 </div>
                 <button
                   onClick={() => onNavigate('passwords')}
-                  className="w-full py-2 px-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 font-bold text-center text-[10px] flex items-center justify-center gap-1.5 border border-purple-500/20 cursor-pointer"
+                  className="w-full py-2 px-3 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 font-bold text-center text-[10px] flex items-center justify-center gap-1.5 border border-purple-500/20 cursor-pointer"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Open Password Vault</span>
@@ -225,7 +225,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
               </div>
 
               {/* Step 4 */}
-              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
+              <div className="bg-card border border-border rounded p-5 flex flex-col justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2.5">
                     <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-bold text-xs flex items-center justify-center">4</span>
@@ -235,7 +235,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                     Once saved, all logins using `@duck.com` usernames will be cataloged on this dashboard automatically for search and copy access.
                   </p>
                 </div>
-                <div className="w-full py-2 px-3 rounded-xl bg-muted border border-border text-muted-foreground font-semibold text-center text-[10px] flex items-center justify-center gap-1.5">
+                <div className="w-full py-2 px-3 rounded bg-muted border border-border text-muted-foreground font-semibold text-center text-[10px] flex items-center justify-center gap-1.5">
                   <Inbox className="w-3.5 h-3.5" />
                   <span>Dashboard Active & Ready</span>
                 </div>
@@ -253,7 +253,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
               placeholder="Search masked emails or websites..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-all shadow-2xs"
+              className="w-full pl-10 pr-4 py-2 text-xs rounded bg-card border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-all shadow-2xs"
             />
           </div>
 
@@ -264,10 +264,10 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
               const isPassVisible = !!visiblePasswords[entry.id];
 
               return (
-                <div key={entry.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-between gap-4 shadow-2xs group hover:border-muted-foreground/30 transition-all animate-in fade-in duration-200">
+                <div key={entry.id} className="bg-card border border-border rounded p-4 flex flex-col justify-between gap-4 shadow-2xs group hover:border-muted-foreground/30 transition-all animate-in fade-in duration-200">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl border border-border bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                      <div className="w-10 h-10 rounded border border-border bg-muted flex items-center justify-center overflow-hidden shrink-0">
                         {favicon ? (
                           <img
                             src={favicon}
@@ -288,7 +288,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                             href={entry.websiteUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[10px] text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1 mt-0.5 truncate"
+                            className="text-[10px] text-amber-500 dark:text-amber-400 hover:underline flex items-center gap-1 mt-0.5 truncate"
                           >
                             <span>{new URL(entry.websiteUrl).hostname}</span>
                             <ExternalLink className="w-2.5 h-2.5" />
@@ -299,7 +299,7 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
 
                     <button
                       onClick={() => onEditPassword(entry)}
-                      className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg hover:bg-primary/20 transition cursor-pointer"
+                      className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded hover:bg-primary/20 transition cursor-pointer"
                     >
                       Open Entry
                     </button>
@@ -309,11 +309,11 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                     {/* Username/Email Input Block */}
                     <div className="space-y-1">
                       <span className="text-[10px] text-muted-foreground font-medium block">Masked Address</span>
-                      <div className="flex items-center justify-between gap-2 p-2 bg-muted border border-border rounded-xl text-xs font-mono">
+                      <div className="flex items-center justify-between gap-2 p-2 bg-muted border border-border rounded text-xs font-mono">
                         <span className="font-semibold text-amber-600 dark:text-amber-400 select-all truncate">{entry.username}</span>
                         <button
                           onClick={() => handleCopyEmail(entry.id, entry.username)}
-                          className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
                           title="Copy Email"
                         >
                           {copiedId === entry.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -324,21 +324,21 @@ export const MaskedEmailsView: React.FC<MaskedEmailsViewProps> = ({
                     {/* Password Input Block */}
                     <div className="space-y-1">
                       <span className="text-[10px] text-muted-foreground font-medium block">Associated Password</span>
-                      <div className="flex items-center justify-between gap-2 p-2 bg-muted border border-border rounded-xl text-xs font-mono">
+                      <div className="flex items-center justify-between gap-2 p-2 bg-muted border border-border rounded text-xs font-mono">
                         <span className="font-semibold text-foreground select-all truncate">
                           {isPassVisible ? entry.password : '••••••••••••••••'}
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => togglePasswordVisibility(entry.id)}
-                            className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                            className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                             title={isPassVisible ? 'Hide Password' : 'Show Password'}
                           >
                             {isPassVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                           </button>
                           <button
                             onClick={() => handleCopyPassword(entry.id, entry.password)}
-                            className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                            className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                             title="Copy Password"
                           >
                             {copiedPassId === entry.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}

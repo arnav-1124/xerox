@@ -47,6 +47,7 @@ Xerox is fully featured and production-ready:
 * **DuckDuckGo Email Protection**: Programmatic generation of private `@duck.com` email aliases via Vercel serverless proxy endpoint `/api/duck-alias` (to bypass CORS and bot detection).
 * **WebRTC Local Device Sync**: A local-first peer-to-peer sync using browser `RTCPeerConnection` APIs, supporting Vanilla ICE for single QR Code scans/manual copy-paste, and room pin connections over public WebSocket signaling servers.
 * **Decentralized IPFS Backup**: Client-side encrypted backup pinning to the decentralized web (IPFS) via a secure serverless Vercel function proxy `/api/ipfs-backup` and resilient HTTP gateway fallback polling.
+* **Document Vault Compression & Encryption**: Securely compresses user-uploaded documents, PDFs, and images using the browser's native `CompressionStream` (GZIP format) before encrypting them with AES-256-GCM. Preserves full backward compatibility for raw plaintext files.
 
 ---
 
@@ -97,4 +98,4 @@ For any future developers (human or AI), here are the recommended next steps to 
 2. **Browser Native Autofill Integration (Credential Management API)**: Integrate the Web Credential Management API to allow browsers to save and suggest Xerox passwords natively.
 3. **Disposable/Masked Email Aliases (DONE)**: Fully integrated DuckDuckGo Email Protection for random alias generation inside the password generator.
 4. **IndexedDB Backup Shard System (DONE)**: Encrypted backup files locally and automatically uploaded to Web3/decentralized storage (IPFS) using client-side AES-256-GCM.
-5. **PDF/Image File Vault Compression**: Automatically compress PDFs, images, and files in the client before encryption and storage in IndexedDB to maximize browser storage quotas.
+5. **PDF/Image File Vault Compression (DONE)**: Automatically compress PDFs, images, and files in the client using native CompressionStream before AES-GCM encryption.

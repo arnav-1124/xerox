@@ -1408,7 +1408,12 @@ export default function App() {
           )}
 
           {currentView === 'files' && (
-            <FileVaultView addToast={addToast} derivedKey={derivedKey} showConfirm={showConfirm} />
+            <FileVaultView
+              addToast={addToast}
+              derivedKey={derivedKey}
+              showConfirm={showConfirm}
+              onUnlockClick={() => setIsMasterPasswordModalOpen(true)}
+            />
           )}
 
           {currentView === 'totp' && (

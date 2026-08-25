@@ -276,11 +276,11 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-popover border border-border rounded-3xl shadow-2xl text-popover-foreground relative overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-lg bg-popover border border-border rounded shadow-2xl text-popover-foreground relative overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-5 sm:p-6 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
               <Wifi className="w-4 h-4" />
             </div>
             <div>
@@ -290,7 +290,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -299,7 +299,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
         {/* Scrollable View Area */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
           {status === 'failed' && (
-            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-2xl flex items-start gap-3">
+            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <span className="text-xs font-bold text-destructive block">Sync Connection Error</span>
@@ -327,9 +327,9 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => setRole('sender')}
-                  className="p-6 rounded-2xl bg-card border border-border hover:border-blue-500/50 hover:bg-blue-500/5 text-center space-y-3 cursor-pointer group transition-all"
+                  className="p-6 rounded bg-card border border-border hover:border-amber-500/50 hover:bg-amber-500/5 text-center space-y-3 cursor-pointer group transition-all"
                 >
-                  <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 text-blue-500 rounded-full flex items-center justify-center mx-auto text-xl group-hover:scale-105 transition-transform">
+                  <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full flex items-center justify-center mx-auto text-xl group-hover:scale-105 transition-transform">
                     <Laptop className="w-5 h-5" />
                   </div>
                   <h4 className="text-xs font-bold text-foreground">Send Data</h4>
@@ -340,7 +340,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
 
                 <button
                   onClick={() => setRole('receiver')}
-                  className="p-6 rounded-2xl bg-card border border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 text-center space-y-3 cursor-pointer group transition-all"
+                  className="p-6 rounded bg-card border border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 text-center space-y-3 cursor-pointer group transition-all"
                 >
                   <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto text-xl group-hover:scale-105 transition-transform">
                     <Smartphone className="w-5 h-5" />
@@ -368,10 +368,10 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                       startHostOffer();
                     }
                   }}
-                  className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-2xl hover:border-muted-foreground/30 hover:bg-accent/20 cursor-pointer text-left transition-all"
+                  className="w-full flex items-center justify-between p-4 bg-card border border-border rounded hover:border-muted-foreground/30 hover:bg-accent/20 cursor-pointer text-left transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center text-sm">
+                    <div className="w-8 h-8 rounded bg-amber-500/10 text-amber-500 flex items-center justify-center text-sm">
                       <QrCode className="w-4 h-4" />
                     </div>
                     <div>
@@ -391,10 +391,10 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                       startBrokerSync(true);
                     }
                   }}
-                  className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-2xl hover:border-muted-foreground/30 hover:bg-accent/20 cursor-pointer text-left transition-all"
+                  className="w-full flex items-center justify-between p-4 bg-card border border-border rounded hover:border-muted-foreground/30 hover:bg-accent/20 cursor-pointer text-left transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center text-sm">
+                    <div className="w-8 h-8 rounded bg-purple-500/10 text-purple-500 flex items-center justify-center text-sm">
                       <Wifi className="w-4 h-4" />
                     </div>
                     <div>
@@ -415,7 +415,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
             <div className="space-y-4 text-xs">
               <div className="flex flex-col items-center text-center space-y-3">
                 <span className="font-bold text-foreground">1. Scan this QR Code from Receiver Device</span>
-                <div className="p-3 bg-white rounded-2xl border border-border">
+                <div className="p-3 bg-white rounded border border-border">
                   <canvas ref={canvasRef} />
                 </div>
                 <div className="w-full space-y-1.5 text-left">
@@ -426,11 +426,11 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                     <textarea
                       readOnly
                       value={localOffer}
-                      className="w-full p-2 h-14 bg-muted border border-border rounded-lg font-mono text-[9px] outline-none text-muted-foreground resize-none"
+                      className="w-full p-2 h-14 bg-muted border border-border rounded font-mono text-[9px] outline-none text-muted-foreground resize-none"
                     />
                     <button
                       onClick={() => handleCopyText(localOffer, setCopiedOffer)}
-                      className="px-3 rounded-lg bg-card border border-border hover:bg-accent shrink-0 text-muted-foreground hover:text-foreground"
+                      className="px-3 rounded bg-card border border-border hover:bg-accent shrink-0 text-muted-foreground hover:text-foreground"
                     >
                       {copiedOffer ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                     </button>
@@ -445,11 +445,11 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                     placeholder="Paste Base64 answer from receiver..."
                     value={remoteAnswerInput}
                     onChange={(e) => setRemoteAnswerInput(e.target.value)}
-                    className="w-full p-2 h-14 bg-card border border-border rounded-lg font-mono text-[9px] outline-none text-foreground resize-none"
+                    className="w-full p-2 h-14 bg-card border border-border rounded font-mono text-[9px] outline-none text-foreground resize-none"
                   />
                   <button
                     onClick={completeManualConnection}
-                    className="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold shrink-0"
+                    className="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold shrink-0"
                   >
                     Connect
                   </button>
@@ -464,11 +464,11 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                 <span className="font-bold text-foreground">1. Scan Sender's QR Code</span>
                 
                 {/* Webcam scanner view container */}
-                <div id="qr-reader-view" className="w-full rounded-2xl border border-border bg-black/5 overflow-hidden" />
+                <div id="qr-reader-view" className="w-full rounded border border-border bg-black/5 overflow-hidden" />
 
                 <button
                   onClick={startQRScanner}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded font-semibold flex items-center gap-2 cursor-pointer"
                 >
                   <Camera className="w-4 h-4" />
                   <span>Start Camera Scan</span>
@@ -482,11 +482,11 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                     placeholder="Paste Base64 offer from sender..."
                     value={remoteOfferInput}
                     onChange={(e) => setRemoteOfferInput(e.target.value)}
-                    className="w-full p-2 h-14 bg-card border border-border rounded-lg font-mono text-[9px] outline-none text-foreground resize-none"
+                    className="w-full p-2 h-14 bg-card border border-border rounded font-mono text-[9px] outline-none text-foreground resize-none"
                   />
                   <button
                     onClick={() => acceptOfferAndAnswer(remoteOfferInput)}
-                    className="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold shrink-0"
+                    className="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold shrink-0"
                   >
                     Import
                   </button>
@@ -498,7 +498,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
           {role === 'receiver' && method === 'manual' && status === 'connecting' && localAnswer && (
             <div className="space-y-4 text-xs text-center flex flex-col items-center">
               <span className="font-bold text-foreground">2. Show this Answer QR Code to Sender</span>
-              <div className="p-3 bg-white rounded-2xl border border-border">
+              <div className="p-3 bg-white rounded border border-border">
                 <canvas ref={canvasRef} />
               </div>
               <div className="w-full space-y-1.5 text-left">
@@ -509,18 +509,18 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                   <textarea
                     readOnly
                     value={localAnswer}
-                    className="w-full p-2 h-14 bg-muted border border-border rounded-lg font-mono text-[9px] outline-none text-muted-foreground resize-none"
+                    className="w-full p-2 h-14 bg-muted border border-border rounded font-mono text-[9px] outline-none text-muted-foreground resize-none"
                   />
                   <button
                     onClick={() => handleCopyText(localAnswer, setCopiedAnswer)}
-                    className="px-3 rounded-lg bg-card border border-border hover:bg-accent shrink-0 text-muted-foreground"
+                    className="px-3 rounded bg-card border border-border hover:bg-accent shrink-0 text-muted-foreground"
                   >
                     {copiedAnswer ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground animate-pulse text-[11px] mt-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
                 <span>Waiting for host to process answer...</span>
               </div>
             </div>
@@ -538,7 +538,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                     {pinCode.split('').map((char, i) => (
                       <span
                         key={i}
-                        className="w-10 h-12 bg-muted border border-border rounded-xl flex items-center justify-center font-bold text-base text-foreground shadow-2xs font-mono"
+                        className="w-10 h-12 bg-muted border border-border rounded flex items-center justify-center font-bold text-base text-foreground shadow-2xs font-mono"
                       >
                         {char}
                       </span>
@@ -549,7 +549,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                   </p>
                   
                   {status === 'joined-room' && (
-                    <div className="p-3 bg-blue-500/5 border border-blue-500/20 text-blue-500 rounded-xl flex items-center justify-center gap-2">
+                    <div className="p-3 bg-amber-500/5 border border-amber-500/20 text-amber-500 rounded flex items-center justify-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       <span className="font-medium text-[10px]">Room joined. Waiting for receiver to connect...</span>
                     </div>
@@ -569,12 +569,12 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
                       value={inputPin}
                       onChange={(e) => setInputPin(e.target.value.replace(/\D/g, ''))}
                       placeholder="e.g. 123456"
-                      className="w-40 py-2.5 rounded-xl bg-card border border-border text-center font-mono font-bold text-base outline-none focus:border-ring shadow-2xs"
+                      className="w-40 py-2.5 rounded bg-card border border-border text-center font-mono font-bold text-base outline-none focus:border-ring shadow-2xs"
                     />
                   </div>
                   <button
                     onClick={() => startBrokerSync(false)}
-                    className="w-40 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold cursor-pointer transition-colors"
+                    className="w-40 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded font-bold cursor-pointer transition-colors"
                   >
                     Join Room PIN
                   </button>
@@ -586,7 +586,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
           {/* Sync Progress Loading State */}
           {(status === 'connecting' || status === 'connecting-broker' || status === 'connected' || status === 'syncing') && (
             <div className="flex flex-col items-center justify-center py-6 space-y-3">
-              <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+              <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
               <div className="text-center space-y-1">
                 <span className="text-xs font-bold text-foreground block capitalize">
                   {status === 'connecting' || status === 'connecting-broker' ? 'Negotiating WebRTC Connection...' : 'Syncing Encrypted Data...'}
@@ -612,7 +612,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
               </div>
 
               {syncSummary && (
-                <div className="p-4 bg-muted border border-border rounded-2xl w-full max-w-sm text-left grid grid-cols-2 gap-3 text-[11px]">
+                <div className="p-4 bg-muted border border-border rounded w-full max-w-sm text-left grid grid-cols-2 gap-3 text-[11px]">
                   <div>
                     <span className="text-muted-foreground block">Passwords Added:</span>
                     <span className="font-bold text-foreground">{syncSummary.addedPass}</span>
@@ -634,7 +634,7 @@ export const PeerSyncModal: React.FC<PeerSyncModalProps> = ({
 
               <button
                 onClick={onClose}
-                className="w-40 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer mt-2"
+                className="w-40 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold cursor-pointer mt-2"
               >
                 Close & Reload
               </button>

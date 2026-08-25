@@ -30,8 +30,11 @@ export interface EncryptedFile {
   id: string;
   name: string;
   size: number;
+  compressedSize?: number;
   type: string;
   data: Blob | string;
+  iv?: string;
+  salt?: string;
   createdAt: number;
 }
 

@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { EncryptedFile } from '../types';
 import { getEncryptedFiles, saveEncryptedFile, deleteEncryptedFileDB } from '../lib/db';
-import { Shield, Upload, FileText, Download, Trash2, Lock, FileCheck, AlertCircle } from 'lucide-react';
+import { compressAndEncryptFile, decryptAndDecompressFile } from '../lib/fileCrypto';
+import {
+  Shield,
+  Upload,
+  FileText,
+  Download,
+  Trash2,
+  Lock,
+  Unlock,
+  FileCheck,
+  AlertCircle,
+  Loader2,
+  HardDriveDownload,
+  ArrowRight,
+  TrendingDown,
+} from 'lucide-react';
 
 interface Props {
   addToast: (text: string, type?: 'success' | 'error' | 'info') => void;
@@ -13,11 +28,13 @@ interface Props {
     isDestructive?: boolean,
     confirmText?: string
   ) => void;
+  onUnlockClick?: () => void;
 }
 
-export function FileVaultView({ addToast, showConfirm }: Props) {
+export function FileVaultView({ addToast, derivedKey, showConfirm, onUnlockClick }: Props) {
   const [files, setFiles] = useState<EncryptedFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
@@ -42,24 +59,44 @@ export function FileVaultView({ addToast, showConfirm }: Props) {
   };
 
   const processFiles = async (fileList: File[]) => {
-    for (const file of fileList) {
-      if (file.size > 15 * 1024 * 1024) {
-        addToast(`File ${file.name} is too large (Max 15MB for local zero-knowledge store)`, 'error');
-        continue;
+    if (!derivedKey) {
+      addToast('Please unlock your vault first to encrypt files.', 'error');
+      if (onUnlockClick) onUnlockClick();
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      for (const file of fileList) {
+        if (file.size > 15 * 1024 * 1024) {
+          addToast(`File ${file.name} is too large (Max 15MB for local store)`, 'error');
+          continue;
+        }
+
+        // Compress and encrypt client-side
+        const { encryptedBlob, iv, salt, compressedSize } = await compressAndEncryptFile(file, derivedKey);
+
+        const newFile: EncryptedFile = {
+          id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+          name: file.name,
+          size: file.size, // Original uncompressed size
+          compressedSize: compressedSize, // Compressed size
+          type: file.type || 'application/octet-stream',
+          data: encryptedBlob, // Encrypted binary Blob
+          iv,
+          salt,
+          createdAt: Date.now(),
+        };
+
+        await saveEncryptedFile(newFile);
+        addToast(`Successfully compressed, encrypted, and stored ${file.name} locally!`, 'success');
       }
-
-      const newFile: EncryptedFile = {
-        id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-        name: file.name,
-        size: file.size,
-        type: file.type || 'application/octet-stream',
-        data: file, // Store raw binary File/Blob (extremely memory-efficient)
-        createdAt: Date.now(),
-      };
-
-      await saveEncryptedFile(newFile);
       await loadFiles();
-      addToast(`Successfully encrypted and stored ${file.name} locally!`, 'success');
+    } catch (e: any) {
+      console.error(e);
+      addToast(`Failed to encrypt and store file: ${e.message || e}`, 'error');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -77,22 +114,35 @@ export function FileVaultView({ addToast, showConfirm }: Props) {
     );
   };
 
-  const handleDownload = (file: EncryptedFile) => {
+  const handleDownload = async (file: EncryptedFile) => {
+    if (!derivedKey) {
+      addToast('Please unlock your vault first to decrypt files.', 'error');
+      if (onUnlockClick) onUnlockClick();
+      return;
+    }
+
     try {
       let blob: Blob;
-      if (file.data instanceof Blob) {
-        blob = file.data;
+
+      // Check if file is encrypted (has metadata headers)
+      if (file.iv && file.salt) {
+        blob = await decryptAndDecompressFile(file.data, file.iv, file.salt, derivedKey);
       } else {
-        const parts = file.data.split(';base64,');
-        const raw = parts[1] || parts[0];
-        const contentType = parts[0].split(':')[1] || file.type;
-        const rawData = atob(raw);
-        const rawLength = rawData.length;
-        const uInt8Array = new Uint8Array(rawLength);
-        for (let i = 0; i < rawLength; ++i) {
-          uInt8Array[i] = rawData.charCodeAt(i);
+        // Fallback for legacy (unencrypted) files
+        if (file.data instanceof Blob) {
+          blob = file.data;
+        } else {
+          const parts = file.data.split(';base64,');
+          const raw = parts[1] || parts[0];
+          const contentType = parts[0].split(':')[1] || file.type;
+          const rawData = atob(raw);
+          const rawLength = rawData.length;
+          const uInt8Array = new Uint8Array(rawLength);
+          for (let i = 0; i < rawLength; ++i) {
+            uInt8Array[i] = rawData.charCodeAt(i);
+          }
+          blob = new Blob([uInt8Array], { type: contentType });
         }
-        blob = new Blob([uInt8Array], { type: contentType });
       }
 
       const url = URL.createObjectURL(blob);
@@ -104,9 +154,9 @@ export function FileVaultView({ addToast, showConfirm }: Props) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       addToast(`Decrypted and downloaded ${file.name}`, 'success');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      addToast('Failed to decrypt and download file', 'error');
+      addToast(`Failed to decrypt and download file: ${err.message || err}`, 'error');
     }
   };
 
@@ -116,109 +166,173 @@ export function FileVaultView({ addToast, showConfirm }: Props) {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Shield className="w-7 h-7 text-blue-600 dark:text-blue-400" />
-            Encrypted File & Document Vault
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Store passports, SSH keys, certificates, and private documents encrypted locally in IndexedDB with zero cloud retention.
+  // Locked View
+  if (!derivedKey) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 px-4 text-center space-y-6">
+        <div className="w-16 h-16 rounded bg-secondary border border-border flex items-center justify-center mx-auto shadow-xs">
+          <Lock className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-foreground">File Vault is Locked</h2>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            Unlock your credentials vault with your Master Password to access, encrypt, and view stored documents.
           </p>
         </div>
-        <label className="cursor-pointer inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl shadow-lg shadow-blue-600/20 transition">
-          <Upload className="w-4 h-4" />
+        {onUnlockClick && (
+          <button
+            onClick={onUnlockClick}
+            className="px-5 py-2 bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 rounded cursor-pointer animate-pulse"
+          >
+            <Unlock className="w-3.5 h-3.5" />
+            Unlock Vault
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Shield className="w-6 h-6 text-amber-500" />
+            <span>Encrypted File & Document Vault</span>
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Store passport scans, SSH credentials, certificates, and private documents compressed & encrypted client-side locally in IndexedDB.
+          </p>
+        </div>
+        <label className="cursor-pointer inline-flex items-center gap-2 bg-primary text-primary-foreground font-semibold py-2 px-4 rounded shadow-xs hover:opacity-90 transition cursor-pointer self-start md:self-auto text-xs">
+          <Upload className="w-3.5 h-3.5" />
           <span>Upload File</span>
-          <input type="file" onChange={handleFileUpload} className="hidden" multiple />
+          <input type="file" onChange={handleFileUpload} className="hidden" multiple disabled={isProcessing} />
         </label>
       </div>
 
       {/* Drag & Drop Dropzone */}
       <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => {
           e.preventDefault();
           setIsDragging(false);
-          if (e.dataTransfer.files) {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             processFiles(Array.from(e.dataTransfer.files));
           }
         }}
-        className={`border-2 border-dashed rounded-2xl p-8 text-center transition ${
+        className={`border border-dashed rounded p-8 text-center transition ${
           isDragging
-            ? 'border-blue-500 bg-blue-500/10'
-            : 'border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-700'
+            ? 'border-emerald-500 bg-emerald-500/10'
+            : 'border-border bg-card/50 hover:border-muted-foreground/30'
         }`}
       >
-        <div className="w-12 h-12 bg-blue-600/10 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mx-auto mb-3">
-          <Lock className="w-6 h-6" />
+        <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded flex items-center justify-center mx-auto mb-3">
+          <Lock className="w-5 h-5" />
         </div>
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Drag & Drop sensitive documents here</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Files are instantly encrypted with AES-GCM and stored only on your browser device. Max file size: 5MB.
+        <h3 className="text-xs font-semibold text-foreground">Drag & Drop sensitive documents here</h3>
+        <p className="text-[11px] text-muted-foreground mt-1.5">
+          Files are compressed with GZIP, encrypted with AES-256-GCM, and stored only on this browser device. Max file size: 15MB.
         </p>
       </div>
 
+      {/* Processing Loader */}
+      {isProcessing && (
+        <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded flex items-center gap-3">
+          <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+          <span className="text-xs font-semibold text-foreground">
+            Compressing & encrypting documents client-side...
+          </span>
+        </div>
+      )}
+
       {/* File List */}
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-          <FileCheck className="w-5 h-5 text-emerald-500" />
-          Stored Encrypted Files ({files.length})
+      <div className="space-y-4">
+        <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <FileCheck className="w-4.5 h-4.5 text-emerald-500" />
+          <span>Stored Encrypted Files ({files.length})</span>
         </h2>
 
         {isLoading ? (
-          <div className="text-center py-12 text-slate-400">Loading secure files...</div>
+          <div className="text-center py-12 text-muted-foreground text-xs">Loading secure files...</div>
         ) : files.length === 0 ? (
-          <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
-            <AlertCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-            <p className="text-slate-700 dark:text-slate-300 font-medium">No files stored in your secure vault yet.</p>
-            <p className="text-xs text-slate-500 mt-1">Upload your confidential documents above to keep them encrypted.</p>
+          <div className="bg-card border border-border rounded p-12 text-center">
+            <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-foreground font-medium text-xs">No files stored in your secure vault yet.</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Upload your confidential documents above to keep them encrypted.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-5 h-5" />
+            {files.map((file) => {
+              const hasCompression = file.compressedSize !== undefined && file.compressedSize < file.size;
+              const savings = hasCompression
+                ? Math.max(0, Math.round(((file.size - file.compressedSize!) / file.size) * 100))
+                : 0;
+
+              return (
+                <div
+                  key={file.id}
+                  className="bg-card border border-border rounded p-4 flex flex-col justify-between group hover:border-amber-500/30 transition shadow-2xs"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="w-9 h-9 rounded bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4.5 h-4.5" />
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                          {formatSize(file.size)}
+                        </span>
+                        {hasCompression && (
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded" title={`Compressed size: ${formatSize(file.compressedSize!)}`}>
+                            <TrendingDown className="w-2.5 h-2.5" />
+                            <span>Saved {savings}%</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                      {formatSize(file.size)}
-                    </span>
+
+                    <h3 className="font-bold text-foreground text-xs truncate mb-1" title={file.name}>
+                      {file.name}
+                    </h3>
+                    
+                    <div className="space-y-1 mt-1 text-[10px] text-muted-foreground font-mono">
+                      <div>Added: {new Date(file.createdAt).toLocaleDateString()}</div>
+                      {hasCompression && (
+                        <div className="flex items-center gap-1.5 text-[9px]">
+                          <span>{formatSize(file.size)}</span>
+                          <ArrowRight className="w-2.5 h-2.5" />
+                          <span className="font-bold text-foreground">{formatSize(file.compressedSize!)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate mb-1" title={file.name}>
-                    {file.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    Added: {new Date(file.createdAt).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center gap-2 mt-5 pt-4 border-t border-border">
+                    <button
+                      onClick={() => handleDownload(file)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-muted hover:bg-accent text-foreground border border-border rounded text-[11px] font-bold transition cursor-pointer"
+                    >
+                      <HardDriveDownload className="w-3.5 h-3.5" />
+                      Decrypt & Download
+                    </button>
+                    <button
+                      onClick={() => handleDelete(file.id, file.name)}
+                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition cursor-pointer"
+                      title="Delete file"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-2 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
-                  <button
-                    onClick={() => handleDownload(file)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-medium transition"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Decrypt & Download
-                  </button>
-                  <button
-                    onClick={() => handleDelete(file.id, file.name)}
-                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition"
-                    title="Delete file"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
