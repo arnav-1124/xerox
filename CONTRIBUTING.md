@@ -1,6 +1,6 @@
-# Contributing to Xerox
+# Contributing to Lokker
 
-Thank you for your interest in contributing to Xerox! We welcome contributions from developers, security auditors, and privacy advocates who share our vision of a local-first, zero-knowledge digital vault.
+Thank you for your interest in contributing to Lokker! We welcome contributions from developers, security auditors, and privacy advocates who share our vision of a local-first, zero-knowledge digital vault.
 
 ---
 
@@ -35,5 +35,5 @@ By participating in this project, you agree to abide by our core principles:
 ## Submitting Pull Requests
 
 1. Create a descriptive branch (e.g., `fix/extension-autofill-edge` or `feat/biometric-unlock`).
-2. Ensure all TypeScript linter checks pass with zero errors.
+2. Ensure all TypeScript linter checks pass.
 3. Submit a Pull Request explaining the security or functional improvements introduced.

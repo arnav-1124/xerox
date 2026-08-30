@@ -24,7 +24,7 @@ export const MarketingDownload: React.FC<MarketingDownloadProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'xerox-browser-extension-mv3.zip';
+      a.download = 'lokker-browser-extension-mv3.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -46,15 +46,15 @@ export const MarketingDownload: React.FC<MarketingDownloadProps> = ({
             <Puzzle className="w-3.5 h-3.5" />
             <span>Manifest V3 Extension Package</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Download Xerox Extension</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Download Lokker Extension</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
             Enjoy real password autofill directly in website login forms across Chrome, Edge, Brave, and Chromium browsers.
           </p>
         </div>
 
         {/* Download Box */}
-        <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-4 shadow-md max-w-xl mx-auto">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600/10 border border-blue-600/20 text-blue-600 flex items-center justify-center mx-auto text-2xl">
+        <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4 shadow-sm max-w-xl mx-auto">
+          <div className="w-14 h-14 rounded-xl bg-blue-600/10 border border-blue-600/20 text-blue-600 flex items-center justify-center mx-auto text-2xl">
             🧩
           </div>
           <h2 className="text-lg font-bold">Chrome & Edge Real Autofill Package</h2>
@@ -64,7 +64,7 @@ export const MarketingDownload: React.FC<MarketingDownloadProps> = ({
           <button
             onClick={handleDownloadZip}
             disabled={downloading}
-            className="py-3 px-6 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-sm cursor-pointer inline-flex items-center gap-2 disabled:opacity-50"
+            className="py-3 px-6 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-sm cursor-pointer inline-flex items-center gap-2 disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
             <span>{downloading ? 'Preparing Package...' : 'Download Extension Package (.zip)'}</span>
@@ -72,18 +72,18 @@ export const MarketingDownload: React.FC<MarketingDownloadProps> = ({
         </div>
 
         {/* Setup Steps */}
-        <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 space-y-4 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-6 sm:p-8 space-y-4 shadow-xs">
           <h3 className="text-base font-bold text-foreground">3-Step Installation Guide</h3>
           <div className="space-y-3 text-xs text-muted-foreground">
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border border-border">
               <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-xs">1</span>
               <div>
                 <strong className="text-foreground block">Extract the ZIP file</strong>
-                Extract the downloaded <code className="font-mono text-[11px]">xerox_extension.zip</code> to a permanent folder on your computer.
+                Extract the downloaded <code className="font-mono text-[11px]">lokker-browser-extension-mv3.zip</code> to a permanent folder on your computer.
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border border-border">
               <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-xs">2</span>
               <div>
                 <strong className="text-foreground block">Open Chrome Extensions</strong>
@@ -91,7 +91,7 @@ export const MarketingDownload: React.FC<MarketingDownloadProps> = ({
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border border-border">
               <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-xs">3</span>
               <div>
                 <strong className="text-foreground block">Load Unpacked Extension</strong>

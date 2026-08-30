@@ -1,5 +1,5 @@
 /**
- * Xerox Extension Background Service Worker
+ * Lokker Extension Background Service Worker
  * Manages active session lock state, ephemeral storage rehydration, origin validation,
  * and responds to popup & content script messages securely.
  */
@@ -109,7 +109,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (!vault || !vault.cipherText) {
           sendResponse({
             success: false,
-            error: 'Vault data not synced yet.\n\nPlease open your Xerox Web Vault tab once to sync your vault.'
+            error: 'Vault data not synced yet.\n\nPlease open your Lokker Web Vault tab once to sync your vault.'
           });
           return;
         }

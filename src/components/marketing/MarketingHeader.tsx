@@ -41,8 +41,8 @@ export const MarketingHeader: React.FC<MarketingHeaderProps> = ({
             🔐
           </div>
           <div>
-            <span className="font-extrabold text-base tracking-tight text-foreground block leading-none">Xerox</span>
-            <span className="text-[10px] text-muted-foreground font-mono leading-none">Local-First Vault</span>
+            <span className="font-extrabold text-base tracking-tight text-foreground block leading-none">Lokker</span>
+            <span className="text-[10px] text-muted-foreground font-mono leading-none">Local-First Password Vault</span>
           </div>
         </button>
 

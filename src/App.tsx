@@ -1,6 +1,6 @@
 /*
- * Xerox - Secure Local-First Password Manager & Bookmarks
- * Copyright (C) 2026 Xerox Vault Open Source Contributors
+ * Lokker - Local-First Password Vault
+ * Copyright (C) 2026 Lokker Open Source Contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -306,15 +306,12 @@ export default function App() {
         setVaultMeta(meta);
         setSettingsState(st);
 
-        // Safe existing-user detection: Redirect / -> /app if local vault is already initialized
-        if (window.location.pathname === '/' && meta && meta.isInitialized) {
-          window.history.replaceState(null, '', '/app');
-          setCurrentPath('/app');
-          setCurrentView('home');
-        }
+        // Marketing homepage always shows at / — users click CTA to reach /app
+        // No auto-redirect for initialized vaults
 
         // If vault hasn't been set up yet and on app routes, show initial setup modal
-        if ((!meta || !meta.isInitialized) && window.location.pathname !== '/') {
+        const marketingRoutes = ['/', '/features', '/security', '/privacy', '/download', '/docs'];
+        if ((!meta || !meta.isInitialized) && !marketingRoutes.includes(window.location.pathname)) {
           setIsMasterPasswordModalOpen(true);
         }
       } catch (err) {
@@ -764,7 +761,7 @@ export default function App() {
       await saveSettings(updatedSettings);
 
       const backupData = {
-        app: 'Xerox Password & Bookmark Manager',
+        app: 'Lokker Password Vault',
         version: 2,
         exportedAt: new Date().toISOString(),
         unencrypted: !encrypted,
@@ -783,7 +780,7 @@ export default function App() {
           derivedKey
         );
         finalPayload = {
-          app: 'Xerox Password & Bookmark Manager',
+          app: 'Lokker Password Vault',
           version: 2,
           exportedAt: new Date().toISOString(),
           isEncryptedBackup: true,
@@ -798,7 +795,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `xerox-vault-${encrypted ? 'encrypted' : 'unencrypted'}-backup-${Date.now()}.json`;
+      a.download = `lokker-vault-${encrypted ? 'encrypted' : 'unencrypted'}-backup-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -837,7 +834,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `xerox-passwords-export-${Date.now()}.csv`;
+    a.download = `lokker-passwords-export-${Date.now()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1184,7 +1181,7 @@ export default function App() {
   };
 
   // Render Public Marketing Pages for marketing routes
-  if (currentPath === '/' && (!vaultMeta || !vaultMeta.isInitialized)) {
+  if (currentPath === '/') {
     return <MarketingHome theme={theme} onToggleTheme={toggleTheme} onNavigate={navigateTo} />;
   }
   if (currentPath === '/features') {

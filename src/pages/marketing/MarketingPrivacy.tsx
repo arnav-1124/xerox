@@ -26,18 +26,18 @@ export const MarketingPrivacy: React.FC<MarketingPrivacyProps> = ({
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Privacy Policy & Local Data Guarantee</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Xerox is built on a fundamental privacy promise: your credentials remain strictly on your own device.
+            Lokker is built on a fundamental privacy promise: your credentials remain strictly on your own device.
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs text-xs leading-relaxed text-muted-foreground">
+        <div className="bg-card border border-border rounded-xl p-6 sm:p-8 space-y-6 shadow-xs text-xs leading-relaxed text-muted-foreground">
           <div className="space-y-2">
             <h2 className="text-base font-bold text-foreground flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               <span>1. Zero Remote Server Storage</span>
             </h2>
             <p>
-              Xerox operates without a central cloud vault or user account server. Your passwords, 2FA keys, secure notes, credit cards, and bookmarks are encrypted client-side and saved exclusively inside your browser local IndexedDB.
+              Lokker operates without a central cloud vault or user account server. Your passwords, 2FA keys, secure notes, credit cards, and bookmarks are encrypted client-side and saved exclusively inside your browser local IndexedDB.
             </p>
           </div>
 
@@ -47,7 +47,7 @@ export const MarketingPrivacy: React.FC<MarketingPrivacyProps> = ({
               <span>2. Zero Telemetry & Tracking</span>
             </h2>
             <p>
-              Xerox contains no analytics scripts, third-party trackers, pixel beacons, or user tracking code. We do not collect or log usage statistics, search queries, or IP addresses.
+              Lokker contains no analytics scripts, third-party trackers, pixel beacons, or user tracking code. We do not collect or log usage statistics, search queries, or IP addresses.
             </p>
           </div>
 
@@ -57,7 +57,7 @@ export const MarketingPrivacy: React.FC<MarketingPrivacyProps> = ({
               <span>3. k-Anonymity Leak Check Privacy</span>
             </h2>
             <p>
-              When running dark web breach checks, Xerox uses SHA-1 k-Anonymity 5-character prefix search with <code className="font-mono text-[11px]">Add-Padding: true</code> headers. Plaintext passwords are never sent over the network.
+              When running dark web breach checks, Lokker uses SHA-1 k-Anonymity 5-character prefix search with <code className="font-mono text-[11px]">Add-Padding: true</code> headers. Plaintext passwords are never sent over the network.
             </p>
           </div>
 
@@ -67,7 +67,7 @@ export const MarketingPrivacy: React.FC<MarketingPrivacyProps> = ({
               <span>4. Extension Isolation</span>
             </h2>
             <p>
-              The Xerox Chrome/Edge Manifest V3 extension communicates with website forms through isolated Shadow DOM containers. It checks credentials against target domain origins locally.
+              The Lokker Chrome/Edge Manifest V3 extension communicates with website forms through isolated Shadow DOM containers. It checks credentials against target domain origins locally.
             </p>
           </div>
         </div>

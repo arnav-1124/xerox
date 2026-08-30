@@ -25,7 +25,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Xerox Vault Uncaught Error:', error, errorInfo);
+    console.error('Lokker Vault Uncaught Error:', error, errorInfo);
   }
 
   private handleExportEmergencyBackup = () => {
@@ -60,7 +60,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             
             <h1 className="text-xl font-bold tracking-tight mb-2">Vault Protection Intercepted Error</h1>
             <p className="text-sm text-slate-400 mb-6">
-              Xerox encountered an unexpected state. Your encrypted data remains safe and untouched locally in your browser storage.
+              Lokker encountered an unexpected state. Your encrypted data remains safe and untouched locally in your browser storage.
             </p>
 
             <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-left font-mono text-xs text-red-300 mb-6 overflow-x-auto max-h-32">

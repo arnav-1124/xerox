@@ -1,6 +1,6 @@
 /*
- * Xerox - Secure Local-First Password Manager & Bookmarks
- * Copyright (C) 2026 Xerox Vault Open Source Contributors
+ * Lokker - Local-First Password Vault
+ * Copyright (C) 2026 Lokker Open Source Contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as

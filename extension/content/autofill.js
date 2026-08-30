@@ -1,5 +1,5 @@
 /**
- * Xerox Real Browser Autofill Injector
+ * Lokker Real Browser Autofill Injector
  * Handles Shadow DOM UI isolation, framework-compatible DOM input value setting,
  * full event dispatch, badge UI positioning and contextual dismissal.
  */
@@ -215,9 +215,9 @@
       wrapper.innerHTML = `
         <span style="font-size: 12px; opacity: 0.7; cursor: grab;" title="Drag to move">⋮⋮</span>
         <span style="font-size: 13px;">🔐</span>
-        <span style="font-weight: 700; font-size: 11px; color: #60a5fa; letter-spacing: 0.3px;">Xerox</span>
+        <span style="font-weight: 700; font-size: 11px; color: #60a5fa; letter-spacing: 0.3px;">Lokker</span>
         <button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; margin-left: 2px; cursor: pointer; transition: background 0.15s;">Autofill</button>
-        <button type="button" class="xerox-dismiss-btn" aria-label="Dismiss Xerox autofill" style="background: transparent; color: #9ca3af; border: none; border-radius: 4px; padding: 2px 5px; font-size: 13px; font-weight: 700; margin-left: 1px; cursor: pointer; transition: color 0.15s;">✕</button>
+        <button type="button" class="xerox-dismiss-btn" aria-label="Dismiss Lokker autofill" style="background: transparent; color: #9ca3af; border: none; border-radius: 4px; padding: 2px 5px; font-size: 13px; font-weight: 700; margin-left: 1px; cursor: pointer; transition: color 0.15s;">✕</button>
       `;
 
       const updatePosition = () => {

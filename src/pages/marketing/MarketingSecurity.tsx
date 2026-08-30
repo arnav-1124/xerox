@@ -27,18 +27,18 @@ export const MarketingSecurity: React.FC<MarketingSecurityProps> = ({
           </div>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">Zero-Knowledge Envelope Security</h1>
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-            Xerox uses a 3-tier Envelope Encryption Model (VEK / KEK) designed so that plaintext data exists only in ephemeral client memory.
+            Lokker uses a 3-tier Envelope Encryption Model (VEK / KEK) designed so that plaintext data exists only in ephemeral client memory.
           </p>
         </div>
 
         {/* Key Hierarchy Section */}
-        <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-6 sm:p-8 space-y-6 shadow-xs">
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Lock className="w-4 h-4 text-blue-500" />
             <span>3-Tier Key Encryption Architecture</span>
           </h2>
 
-          <div className="p-4 rounded-xl bg-background border border-border font-mono text-xs text-muted-foreground leading-relaxed">
+          <div className="p-4 rounded-lg bg-background border border-border font-mono text-xs text-muted-foreground leading-relaxed">
             <div className="text-blue-500 font-bold mb-2">VEK / KEK Hierarchy Diagram:</div>
             <pre className="overflow-x-auto">
 {`  Master Password  ──────► Password KEK  ──────┐
@@ -48,14 +48,14 @@ export const MarketingSecurity: React.FC<MarketingSecurityProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-1.5">
+            <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-1.5">
               <span className="font-bold text-foreground">Vault Encryption Key (VEK)</span>
               <p className="text-muted-foreground">
                 Random 256-bit AES-GCM key generated via <code className="font-mono text-[11px]">crypto.getRandomValues()</code>. Encrypts the entire vault payload directly.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-1.5">
+            <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-1.5">
               <span className="font-bold text-foreground">Key Encryption Key (KEK)</span>
               <p className="text-muted-foreground">
                 Derived via PBKDF2 (SHA-256, 100,000 iterations, 16-byte random salt). Used to wrap/unwrap the VEK via AES-GCM.
@@ -66,8 +66,8 @@ export const MarketingSecurity: React.FC<MarketingSecurityProps> = ({
 
         {/* WebAuthn PRF & Recovery Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 rounded-2xl bg-card border border-border space-y-3 shadow-xs">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-500 flex items-center justify-center">
+          <div className="p-6 rounded-xl bg-card border border-border space-y-3 shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center">
               <Fingerprint className="w-4 h-4" />
             </div>
             <h3 className="text-base font-bold">WebAuthn PRF Hardware Protection</h3>
@@ -76,7 +76,7 @@ export const MarketingSecurity: React.FC<MarketingSecurityProps> = ({
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-card border border-border space-y-3 shadow-xs">
+          <div className="p-6 rounded-xl bg-card border border-border space-y-3 shadow-xs">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
               <KeyRound className="w-4 h-4" />
             </div>
@@ -88,7 +88,7 @@ export const MarketingSecurity: React.FC<MarketingSecurityProps> = ({
         </div>
 
         {/* Origin Guard & Tamper Resistance */}
-        <div className="bg-card border border-border rounded-2xl p-6 space-y-4 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-xs">
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-500" />
             <span>Phishing Guard & AES-GCM Integrity</span>
@@ -99,7 +99,7 @@ export const MarketingSecurity: React.FC<MarketingSecurityProps> = ({
               • <strong>AES-GCM Tag Tamper Resistance:</strong> Any 1-byte mutation of ciphertext, IV, salt, or wrapped VEK triggers immediate authentication tag rejection.
             </p>
             <p>
-              • <strong>Extension Origin Allowlist:</strong> Extension synchronization messages are strictly filtered against an explicit origin allowlist (<code className="font-mono text-[11px]">TRUSTED_XEROX_ORIGINS</code>). Unrelated origins or phishing sites are rejected.
+              • <strong>Extension Origin Allowlist:</strong> Extension synchronization messages are strictly filtered against an explicit origin allowlist. Unrelated origins or phishing sites are rejected.
             </p>
           </div>
         </div>

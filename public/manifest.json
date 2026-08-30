@@ -1,11 +1,11 @@
 {
-  "name": "Xerox - Zero-Knowledge Password Manager & Bookmarks",
-  "short_name": "Xerox Vault",
+  "name": "Lokker — Local-First Password Vault",
+  "short_name": "Lokker",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090d16",
   "theme_color": "#2563eb",
-  "description": "Secure, local-first encrypted password vault, 2FA authenticator, and bookmark manager.",
+  "description": "Local-first encrypted password vault, 2FA authenticator, and browser autofill extension.",
   "icons": [
     {
       "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=192&h=192&fit=crop",

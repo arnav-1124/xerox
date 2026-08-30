@@ -1,12 +1,12 @@
-# Xerox - Cryptographic Architecture & Technical Reference 🔐
+# Lokker — Cryptographic Architecture & Technical Reference 🔐
 
-Welcome to the authoritative technical documentation for **Xerox**, an enterprise-grade local-first password vault, 2FA TOTP authenticator, smart bookmark manager, and Chrome/Edge Manifest V3 browser extension with real browser autofill.
+Welcome to the authoritative technical documentation for **Lokker**, an enterprise-grade local-first password vault, 2FA TOTP authenticator, smart bookmark manager, and Chrome/Edge Manifest V3 browser extension with real browser autofill.
 
 ---
 
 ## 📐 Key Hierarchy & Envelope Encryption Architecture
 
-Xerox employs a 3-tier **Envelope Encryption Model** (VEK / KEK) to guarantee zero-knowledge confidentiality, instant master password rotation, genuine offline recovery key protection, hardware-bound WebAuthn PRF unlock, and cloud-sync readiness.
+Lokker employs a 3-tier **Envelope Encryption Model** (VEK / KEK) to guarantee zero-knowledge confidentiality, instant master password rotation, genuine offline recovery key protection, hardware-bound WebAuthn PRF unlock, and cloud-sync readiness.
 
 ```text
                     ┌── Password KEK ────┐
@@ -91,5 +91,3 @@ npx tsx src/tests/fileVault.test.ts
 # 7. Real-World Extension Suite
 node real_world_validation.cjs
 ```
-
-All test assertions pass cleanly along with `npm run build`.

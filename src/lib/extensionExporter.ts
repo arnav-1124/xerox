@@ -9,7 +9,7 @@ export async function generateExtensionZip(): Promise<Blob> {
     JSON.stringify(
       {
         manifest_version: 3,
-        name: 'Xerox - Local Password & Bookmark Manager',
+        name: 'Lokker - Local-First Password Vault',
         version: '1.0.0',
         description: 'Local-first privacy-focused password vault and bookmark manager with real browser autofill.',
         permissions: ['activeTab', 'storage', 'scripting'],
@@ -28,7 +28,7 @@ export async function generateExtensionZip(): Promise<Blob> {
         ],
         action: {
           default_popup: 'popup/popup.html',
-          default_title: 'Xerox Password Manager',
+          default_title: 'Lokker Password Vault',
           default_icon: {
             '16': 'icons/icon16.png',
             '48': 'icons/icon48.png',
@@ -133,7 +133,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (!vault || !vault.cipherText) {
           sendResponse({
             success: false,
-            error: 'Vault data not synced yet.\\n\\nPlease open your Xerox Web Vault tab once to sync your vault.'
+            error: 'Vault data not synced yet.\\n\\nPlease open your Lokker Web Vault tab once to sync your vault.'
           });
           return;
         }
@@ -498,7 +498,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       wrapper = document.createElement('div');
       wrapper.id = 'xerox-floating-badge';
       wrapper.style.cssText = 'position:fixed;z-index:2147483647;cursor:grab;display:flex;align-items:center;gap:6px;background:#111827;border:1.5px solid #3b82f6;border-radius:8px;padding:4px 10px;font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#f3f4f6;box-shadow:0 10px 25px -5px rgba(0,0,0,0.6);user-select:none;';
-      wrapper.innerHTML = \`<span style="font-size: 12px; opacity: 0.7; cursor: grab;">⋮⋮</span><span style="font-size: 13px;">🔐</span><span style="font-weight: 700; font-size: 11px; color: #60a5fa;">Xerox</span><button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">Autofill</button>\`;
+      wrapper.innerHTML = \`<span style="font-size: 12px; opacity: 0.7; cursor: grab;">⋮⋮</span><span style="font-size: 13px;">🔐</span><span style="font-weight: 700; font-size: 11px; color: #60a5fa;">Lokker</span><button type="button" class="xerox-autofill-btn" style="background: #2563eb; color: #ffffff; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">Autofill</button>\`;
 
       const updatePosition = () => {
         if (!targetInput || !document.body.contains(targetInput)) { wrapper.style.display = 'none'; return; }
@@ -792,7 +792,7 @@ export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassw
   const popupFolder = zip.folder('popup');
   popupFolder?.file(
     'popup.html',
-    `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Xerox</title><link rel="stylesheet" href="popup.css"></head><body><div class="popup-container"><header class="popup-header"><div class="brand"><span class="logo-icon">🔐</span><span class="brand-title">Xerox</span></div><div id="status-badge" class="status-badge locked"><span id="status-text">Locked</span></div></header><main class="popup-main"><div id="unlock-section" class="view-section"><p class="section-desc">Enter Master Password to unlock local Xerox vault:</p><div class="input-group"><input type="password" id="master-password-input" placeholder="Master Password" autofocus /><button id="unlock-btn" class="btn btn-primary">Unlock Vault</button></div><p id="error-msg" class="error-msg"></p></div><div id="unlocked-section" class="view-section hidden"><div class="tab-domain-box"><span class="domain-label">Current Site:</span><span id="current-domain" class="domain-value">loading...</span></div><div id="credentials-container" class="credentials-list"></div><div id="no-matches" class="no-matches hidden"><p>No matching credentials found for this domain.</p></div></div></main><footer class="popup-footer"><button id="open-vault-btn" class="btn btn-ghost">Open Web Vault</button><button id="lock-btn" class="btn btn-ghost danger hidden">Lock Vault</button></footer></div><script type="module" src="popup.js"></script></body></html>`
+    `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lokker</title><link rel="stylesheet" href="popup.css"></head><body><div class="popup-container"><header class="popup-header"><div class="brand"><span class="logo-icon">🔐</span><span class="brand-title">Lokker</span></div><div id="status-badge" class="status-badge locked"><span id="status-text">Locked</span></div></header><main class="popup-main"><div id="unlock-section" class="view-section"><p class="section-desc">Enter Master Password to unlock local Lokker vault:</p><div class="input-group"><input type="password" id="master-password-input" placeholder="Master Password" autofocus /><button id="unlock-btn" class="btn btn-primary">Unlock Vault</button></div><p id="error-msg" class="error-msg"></p></div><div id="unlocked-section" class="view-section hidden"><div class="tab-domain-box"><span class="domain-label">Current Site:</span><span id="current-domain" class="domain-value">loading...</span></div><div id="credentials-container" class="credentials-list"></div><div id="no-matches" class="no-matches hidden"><p>No matching credentials found for this domain.</p></div></div></main><footer class="popup-footer"><button id="open-vault-btn" class="btn btn-ghost">Open Web Vault</button><button id="lock-btn" class="btn btn-ghost danger hidden">Lock Vault</button></footer></div><script type="module" src="popup.js"></script></body></html>`
   );
 
   popupFolder?.file(

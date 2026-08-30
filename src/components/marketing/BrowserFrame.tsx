@@ -7,7 +7,7 @@ interface BrowserFrameProps {
 }
 
 export const BrowserFrame: React.FC<BrowserFrameProps> = ({
-  url = 'https://xerox.local/vault',
+  url = 'https://lokker.local/vault',
   children,
   className = '',
 }) => {

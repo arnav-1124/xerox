@@ -15,10 +15,10 @@ export const MarketingFooter: React.FC<MarketingFooterProps> = ({ onNavigate }) 
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-xs">
               🔐
             </div>
-            <span className="font-extrabold text-base tracking-tight">Xerox</span>
+            <span className="font-extrabold text-base tracking-tight">Lokker</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Enterprise-grade local-first password vault, 2FA TOTP authenticator, and browser autofill extension.
+            Local-first password vault, 2FA TOTP authenticator, and browser autofill extension. Your credentials stay on your device.
           </p>
           <div className="pt-1 flex items-center gap-2 text-[11px] text-muted-foreground font-mono">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
@@ -89,7 +89,7 @@ export const MarketingFooter: React.FC<MarketingFooterProps> = ({ onNavigate }) 
       </div>
 
       <div className="max-w-7xl mx-auto border-t border-border mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-muted-foreground">
-        <div>© 2026 Xerox Vault. Stored on your device. Zero telemetry.</div>
+        <div>© 2026 Lokker. Stored on your device. Zero telemetry.</div>
         <div className="flex items-center gap-4">
           <button onClick={() => onNavigate('/privacy')} className="hover:text-foreground">Privacy</button>
           <button onClick={() => onNavigate('/security')} className="hover:text-foreground">Security</button>

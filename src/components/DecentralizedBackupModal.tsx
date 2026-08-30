@@ -98,7 +98,7 @@ export const DecentralizedBackupModal: React.FC<DecentralizedBackupModalProps> =
     try {
       // Pack current database state
       const backupData = {
-        app: 'Xerox Password & Bookmark Manager',
+        app: 'Lokker Password Vault',
         version: 2,
         exportedAt: new Date().toISOString(),
         passwords,

@@ -26,7 +26,7 @@ export async function deriveKeyCbc(masterPassword, saltUint8) {
 
 export async function decryptVault(cipherText, ivBase64, saltBase64, masterPassword) {
   if (!cipherText || !ivBase64 || !saltBase64) {
-    throw new Error('Incomplete vault payload. Please open Xerox Web Vault tab to sync.');
+    throw new Error('Incomplete vault payload. Please open Lokker Web Vault tab to sync.');
   }
 
   const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));

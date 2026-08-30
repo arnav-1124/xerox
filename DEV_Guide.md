@@ -1,6 +1,6 @@
-# Xerox Developer Guide & Technical Architecture
+# Lokker Developer Guide & Technical Architecture
 
-Xerox is an enterprise-grade, local-first password vault, 2FA TOTP authenticator, smart bookmark manager, and Chrome/Edge Manifest V3 browser extension with **real browser autofill**.
+Lokker is an enterprise-grade, local-first password vault, 2FA TOTP authenticator, smart bookmark manager, and Chrome/Edge Manifest V3 browser extension with **real browser autofill**.
 
 ---
 
@@ -66,7 +66,7 @@ npx tsx src/tests/ipfsBackup.test.ts
 # 9. Run File Compression & Encryption Suite
 npx tsx src/tests/fileVault.test.ts
 
-# 10. Execute 31-point real-world extension validation suite
+# 10. Execute real-world extension validation suite
 npm run test:extension
 
 # 11. Build production web bundle
